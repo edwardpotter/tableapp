@@ -1,35 +1,41 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { useState } from 'react';
+import Header from './components/Header';
+import HomePage from './components/HomePage';
+import AdminPage from './components/AdminPage';
+import AdminModal from './components/AdminModal';
+import './App.css';
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState('home');
+
+  const handleAdminAuthenticated = () => {
+    setIsAdminModalOpen(false);
+    setCurrentPage('admin');
+  };
+
+  const handleTabChange = (tab) => {
+    setCurrentPage(tab);
+  };
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    <div className="min-h-screen bg-gray-50">
+      <Header
+        onAdminClick={() => setIsAdminModalOpen(true)}
+        activeTab={currentPage}
+        onTabChange={handleTabChange}
+      />
+      <main>
+        {currentPage === 'home' && <HomePage />}
+        {currentPage === 'admin' && <AdminPage />}
+      </main>
+      <AdminModal
+        isOpen={isAdminModalOpen}
+        onClose={() => setIsAdminModalOpen(false)}
+        onAuthenticated={handleAdminAuthenticated}
+      />
+    </div>
+  );
 }
 
-export default App
+export default App;

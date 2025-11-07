@@ -10,7 +10,7 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Database connection
+// Database connection - delete ors pre-production
 const pool = new Pool({
   host: process.env.DB_HOST || 'postgres',
   port: process.env.DB_PORT || 5432,
@@ -19,6 +19,188 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD || 'postgres',
 });
 
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', message: 'Server is running' });
+});
+
+// Get configuration values
+app.get('/api/config', (req, res) => {
+  res.json({
+    countdownSeconds: parseInt(process.env.COUNTDOWN_SECONDS || '120', 10)
+  });
+});
+
+// Admin authentication endpoint
+app.post('/api/admin/authenticate', (req, res) => {
+  const { code } = req.body;
+  const ADMIN_CODE = process.env.ADMIN_CODE || '0710'; // In production, use environment variable
+  
+  if (code === ADMIN_CODE) {
+    res.json({ success: true, message: 'Authentication successful' });
+  } else {
+    res.status(401).json({ success: false, message: 'Invalid code' });
+  }
+});
+
+// Admin data refresh endpoint
+app.post('/api/admin/refresh', async (req, res) => {
+  try {
+    console.log('Starting data refresh...');
+    
+    // Fetch data from external API (updated URL with latitude and longitude)
+    const apiUrl = 'https://gcp-us-east1.api.carto.com/v3/sql/us_svc_canvas_carto/query?q=select%0A%20%20%20%20distinct%0A%20%20%20%20%20%20%20%20canvas_pid%2C%0A%20%20%20%20%20%20%20%20primary_address%2C%0A%20%20%20%20%20%20%20%20canvas_submarket%2C%0A%20%20%20%20%20%20%20%20property_class%2C%0A%20%20%20%20%20%20%20%20latitude%2C%0A%20%20%20%20%20%20%20%20longitude%0Afrom%0A%20%20%20%20PROD_CANVAS_DB.DATA.CANVAS_PROPERTIES%0Awhere%0A%20%20%20%20canvas_pid%20in%20(%0A%20%20%20%20%20%20%20%20select%20%0A%20%20%20%20%20%20%20%20%20%20%20%20min(canvas_pid)%0A%20%20%20%20%20%20%20%20from%0A%20%20%20%20%20%20%20%20%20%20%20%20PROD_CANVAS_DB.DATA.CANVAS_PROPERTIES%0A%20%20%20%20%20%20%20%20where%0A%20%20%20%20%20%20%20%20%20%20%20%20canvas_region_id%20%3D%208491580179800618632%0A%20%20%20%20%20%20%20%20%20%20%20%20and%20property_type%20%3D%20%27Office%27%0A%20%20%20%20%20%20%20%20group%20by%20primary_address%0A%20%20%20%20)%0A%20%20%20%20and%20property_class%20is%20not%20null%0Aorder%20by%20primary_address%20asc';
+    
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJhIjoiYWNfeG03N2kwbmoiLCJqdGkiOiJjNWZhNDg5NiJ9.haDyxrwvNByCclGuXe58BAuEF8DDsnHNj-7dNwQG3xI',
+        'Cache-Control': 'max-age=300'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    console.log(`Received ${data.rows?.length || 0} properties from API`);
+
+    // Start a transaction
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Clear existing properties
+      await client.query('DELETE FROM properties');
+      console.log('Cleared existing properties');
+
+      // Insert new properties
+      if (data.rows && data.rows.length > 0) {
+        let successCount = 0;
+        
+        for (const row of data.rows) {
+          // CARTO returns UPPERCASE field names
+          // Convert large number to string to preserve precision
+          const canvasPid = row.CANVAS_PID ? String(row.CANVAS_PID) : null;
+          const primaryAddress = row.PRIMARY_ADDRESS || null;
+          const canvasSubmarket = row.CANVAS_SUBMARKET || null;
+          const propertyClass = row.PROPERTY_CLASS || null;
+          const latitude = row.LATITUDE || null;
+          const longitude = row.LONGITUDE || null;
+          
+          // Skip rows with null canvas_pid
+          if (!canvasPid) {
+            console.warn('Skipping row with null CANVAS_PID:', JSON.stringify(row));
+            continue;
+          }
+          
+          try {
+            await client.query(
+              'INSERT INTO properties (canvas_pid, primary_address, canvas_submarket, property_class, latitude, longitude) VALUES ($1, $2, $3, $4, $5, $6)',
+              [canvasPid, primaryAddress, canvasSubmarket, propertyClass, latitude, longitude]
+            );
+            successCount++;
+          } catch (insertErr) {
+            console.error('Error inserting row:', insertErr.message, 'Row:', JSON.stringify(row));
+          }
+        }
+        
+        console.log(`Inserted ${successCount} properties (skipped ${data.rows.length - successCount} invalid rows)`);
+      }
+
+      await client.query('COMMIT');
+      
+      res.json({ 
+        success: true, 
+        message: 'Data refreshed successfully',
+        recordsProcessed: data.rows?.length || 0
+      });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('Error refreshing data:', err);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to refresh data',
+      error: err.message 
+    });
+  }
+});
+
+// Get all properties with optional filters
+app.get('/api/properties', async (req, res) => {
+  try {
+    const { search, submarket, property_class } = req.query;
+    
+    let query = 'SELECT * FROM properties WHERE 1=1';
+    const params = [];
+    let paramCount = 0;
+
+    // Add search filter for primary_address
+    if (search) {
+      paramCount++;
+      query += ` AND primary_address ILIKE ${paramCount}`;
+      params.push(`%${search}%`);
+    }
+
+    // Add submarket filter
+    if (submarket) {
+      paramCount++;
+      query += ` AND canvas_submarket = ${paramCount}`;
+      params.push(submarket);
+    }
+
+    // Add property_class filter
+    if (property_class) {
+      paramCount++;
+      query += ` AND property_class = ${paramCount}`;
+      params.push(property_class);
+    }
+
+    query += ' ORDER BY primary_address';
+
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching properties:', err);
+    res.status(500).json({ error: 'Failed to fetch properties' });
+  }
+});
+
+// Get unique submarkets for filter dropdown
+app.get('/api/properties/submarkets', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT DISTINCT canvas_submarket FROM properties WHERE canvas_submarket IS NOT NULL ORDER BY canvas_submarket'
+    );
+    res.json(result.rows.map(row => row.canvas_submarket));
+  } catch (err) {
+    console.error('Error fetching submarkets:', err);
+    res.status(500).json({ error: 'Failed to fetch submarkets' });
+  }
+});
+
+// Get unique property classes for filter dropdown
+app.get('/api/properties/classes', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT DISTINCT property_class FROM properties WHERE property_class IS NOT NULL ORDER BY property_class'
+    );
+    res.json(result.rows.map(row => row.property_class));
+  } catch (err) {
+    console.error('Error fetching property classes:', err);
+    res.status(500).json({ error: 'Failed to fetch property classes' });
+  }
+});
+
+
+// Example stuff below - can kill pre-production
+
 // Test database connection
 pool.query('SELECT NOW()', (err, res) => {
   if (err) {
@@ -26,11 +208,6 @@ pool.query('SELECT NOW()', (err, res) => {
   } else {
     console.log('Database connected:', res.rows[0]);
   }
-});
-
-// Example routes
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Server is running' });
 });
 
 // Example: Get all items
@@ -87,6 +264,9 @@ app.delete('/api/items/:id', async (req, res) => {
   }
 });
 
+// Example stuff end - can kill pre-production
+
+// Start server
 app.listen(port, '0.0.0.0', () => {
   console.log(`Server running on port ${port}`);
 });

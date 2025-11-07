@@ -1,0 +1,6 @@
+v0.01
+Added property picker
+Added flatten table command
+Added activate table command
+Added lat/lon to property data
+Added countdown time as env variable

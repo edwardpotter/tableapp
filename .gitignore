@@ -4,3 +4,5 @@ dist/
 .DS_Store
 *.log
 postgres_data/
+project_context.md
+examples/
