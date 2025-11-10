@@ -1,70 +1,31 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, X, Building2, MapPin, Tag } from 'lucide-react';
+import { Search, MapPin, Tag, Building, X } from 'lucide-react';
 import axios from 'axios';
+import PropertyMap from './PropertyMap';
 
-function PropertyPicker({ onPropertySelect }) {
+function PropertyPicker({ selectedProperty, onSelectProperty, theme }) {
+  const [properties, setProperties] = useState([]);
+  const [filteredProperties, setFilteredProperties] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSubmarket, setSelectedSubmarket] = useState('');
   const [selectedClass, setSelectedClass] = useState('');
-  const [properties, setProperties] = useState([]);
-  const [filteredProperties, setFilteredProperties] = useState([]);
   const [submarkets, setSubmarkets] = useState([]);
   const [propertyClasses, setPropertyClasses] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [selectedProperty, setSelectedProperty] = useState(null);
   const dropdownRef = useRef(null);
+  const searchInputRef = useRef(null);
 
-  // Load initial data
   useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        setIsLoading(true);
-        const [propertiesRes, submarketRes, classesRes] = await Promise.all([
-          axios.get('/api/properties'),
-          axios.get('/api/properties/submarkets'),
-          axios.get('/api/properties/classes')
-        ]);
-        
-        setProperties(propertiesRes.data);
-        setFilteredProperties(propertiesRes.data);
-        setSubmarkets(submarketRes.data);
-        setPropertyClasses(classesRes.data);
-      } catch (error) {
-        console.error('Error loading data:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadInitialData();
+    fetchProperties();
+    fetchSubmarkets();
+    fetchPropertyClasses();
   }, []);
 
-  // Filter properties based on search and filters
   useEffect(() => {
-    let filtered = [...properties];
+    filterProperties();
+  }, [properties, searchTerm, selectedSubmarket, selectedClass]);
 
-    // Apply search filter
-    if (searchTerm) {
-      filtered = filtered.filter(prop => 
-        prop.primary_address?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    // Apply submarket filter
-    if (selectedSubmarket) {
-      filtered = filtered.filter(prop => prop.canvas_submarket === selectedSubmarket);
-    }
-
-    // Apply class filter
-    if (selectedClass) {
-      filtered = filtered.filter(prop => prop.property_class === selectedClass);
-    }
-
-    setFilteredProperties(filtered);
-  }, [searchTerm, selectedSubmarket, selectedClass, properties]);
-
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -76,65 +37,202 @@ function PropertyPicker({ onPropertySelect }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handlePropertySelect = (property) => {
-    setSelectedProperty(property);
-    setSearchTerm(property.primary_address || '');
-    setShowDropdown(false);
-    if (onPropertySelect) {
-      onPropertySelect(property);
+  const fetchProperties = async () => {
+    try {
+      const response = await axios.get('/api/properties');
+      setProperties(response.data);
+      setFilteredProperties(response.data);
+    } catch (error) {
+      console.error('Error fetching properties:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleClearSelection = () => {
-    setSelectedProperty(null);
-    setSearchTerm('');
-    setSelectedSubmarket('');
-    setSelectedClass('');
-    if (onPropertySelect) {
-      onPropertySelect(null);
+  const fetchSubmarkets = async () => {
+    try {
+      const response = await axios.get('/api/properties/submarkets');
+      setSubmarkets(response.data);
+    } catch (error) {
+      console.error('Error fetching submarkets:', error);
     }
   };
 
-  const handleSearchFocus = () => {
-    setShowDropdown(true);
+  const fetchPropertyClasses = async () => {
+    try {
+      const response = await axios.get('/api/properties/classes');
+      setPropertyClasses(response.data);
+    } catch (error) {
+      console.error('Error fetching property classes:', error);
+    }
+  };
+
+  const filterProperties = () => {
+    let filtered = [...properties];
+
+    if (searchTerm) {
+      filtered = filtered.filter((property) =>
+        property.primary_address.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    if (selectedSubmarket) {
+      filtered = filtered.filter((property) => property.canvas_submarket === selectedSubmarket);
+    }
+
+    if (selectedClass) {
+      filtered = filtered.filter((property) => property.property_class === selectedClass);
+    }
+
+    setFilteredProperties(filtered);
   };
 
   const handleSearchChange = (e) => {
-    setSearchTerm(e.target.value);
+    const value = e.target.value;
+    setSearchTerm(value);
     setShowDropdown(true);
-    setSelectedProperty(null);
   };
 
-  if (isLoading) {
+  const handlePropertySelect = (property) => {
+    onSelectProperty(property);
+    setSearchTerm('');
+    setShowDropdown(false);
+  };
+
+  const handleClearSearch = () => {
+    setSearchTerm('');
+    setShowDropdown(false);
+    searchInputRef.current?.focus();
+  };
+
+  const handleClearSelection = () => {
+    onSelectProperty(null);
+  };
+
+  const handleSubmarketChange = (e) => {
+    setSelectedSubmarket(e.target.value);
+  };
+
+  const handleClassChange = (e) => {
+    setSelectedClass(e.target.value);
+  };
+
+  if (loading) {
     return (
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex items-center justify-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <span className="ml-3 text-gray-600">Loading properties...</span>
-        </div>
+      <div className={`rounded-lg shadow-md p-6 ${
+        theme === 'dark' ? 'bg-gray-800' : 'bg-white'
+      }`}>
+        <p className={`text-center ${
+          theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+        }`}>
+          Loading properties...
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <h2 className="text-2xl font-bold mb-6">Select a Property</h2>
+    <div className={`rounded-lg shadow-md p-6 ${
+      theme === 'dark' ? 'bg-gray-800' : 'bg-white'
+    }`}>
+      <h2 className={`text-2xl font-semibold mb-4 ${
+        theme === 'dark' ? 'text-white' : 'text-gray-900'
+      }`}>
+        Select Property
+      </h2>
 
-      {/* Filters Row */}
+      {/* Search and Filters */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        {/* Search Input */}
+        <div className="relative" ref={dropdownRef}>
+          <div className="relative">
+            <Search className={`absolute left-3 top-3 w-5 h-5 ${
+              theme === 'dark' ? 'text-gray-500' : 'text-gray-400'
+            }`} />
+            <input
+              ref={searchInputRef}
+              type="text"
+              placeholder="Search by address..."
+              value={searchTerm}
+              onChange={handleSearchChange}
+              onFocus={() => setShowDropdown(true)}
+              className={`w-full pl-10 pr-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                theme === 'dark'
+                  ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
+                  : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+              }`}
+            />
+            {searchTerm && (
+              <button
+                onClick={handleClearSearch}
+                className={`absolute right-3 top-3 ${
+                  theme === 'dark'
+                    ? 'text-gray-400 hover:text-gray-200'
+                    : 'text-gray-400 hover:text-gray-600'
+                }`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            )}
+          </div>
+
+          {/* Search Dropdown */}
+          {showDropdown && searchTerm && (
+            <div className={`absolute z-10 w-full mt-1 border rounded-lg shadow-lg max-h-60 overflow-y-auto ${
+              theme === 'dark'
+                ? 'bg-gray-700 border-gray-600'
+                : 'bg-white border-gray-300'
+            }`}>
+              {filteredProperties.length > 0 ? (
+                filteredProperties.map((property) => (
+                  <div
+                    key={property.id}
+                    onClick={() => handlePropertySelect(property)}
+                    className={`px-4 py-2 cursor-pointer border-b last:border-b-0 ${
+                      theme === 'dark'
+                        ? 'hover:bg-gray-600 border-gray-600'
+                        : 'hover:bg-blue-50 border-gray-100'
+                    }`}
+                  >
+                    <div className={`font-medium ${
+                      theme === 'dark' ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      {property.primary_address}
+                    </div>
+                    <div className={`text-sm ${
+                      theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                    }`}>
+                      {property.canvas_submarket} • Class {property.property_class}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className={`px-4 py-3 text-center ${
+                  theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                }`}>
+                  No properties found
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Submarket Filter */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            <MapPin className="w-4 h-4 inline mr-1" />
-            Submarket
-          </label>
+        <div className="relative">
+          <MapPin className={`absolute left-3 top-3 w-5 h-5 ${
+            theme === 'dark' ? 'text-gray-500' : 'text-gray-400'
+          }`} />
           <select
             value={selectedSubmarket}
-            onChange={(e) => setSelectedSubmarket(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={handleSubmarketChange}
+            className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none ${
+              theme === 'dark'
+                ? 'bg-gray-700 border-gray-600 text-white'
+                : 'bg-white border-gray-300 text-gray-900'
+            }`}
           >
             <option value="">All Submarkets</option>
-            {submarkets.map(submarket => (
+            {submarkets.map((submarket) => (
               <option key={submarket} value={submarket}>
                 {submarket}
               </option>
@@ -143,131 +241,96 @@ function PropertyPicker({ onPropertySelect }) {
         </div>
 
         {/* Property Class Filter */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            <Tag className="w-4 h-4 inline mr-1" />
-            Property Class
-          </label>
+        <div className="relative">
+          <Tag className={`absolute left-3 top-3 w-5 h-5 ${
+            theme === 'dark' ? 'text-gray-500' : 'text-gray-400'
+          }`} />
           <select
             value={selectedClass}
-            onChange={(e) => setSelectedClass(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={handleClassChange}
+            className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none ${
+              theme === 'dark'
+                ? 'bg-gray-700 border-gray-600 text-white'
+                : 'bg-white border-gray-300 text-gray-900'
+            }`}
           >
             <option value="">All Classes</option>
-            {propertyClasses.map(propClass => (
-              <option key={propClass} value={propClass}>
-                Class {propClass}
+            {propertyClasses.map((propertyClass) => (
+              <option key={propertyClass} value={propertyClass}>
+                Class {propertyClass}
               </option>
             ))}
           </select>
         </div>
-
-        {/* Results Count */}
-        <div className="flex items-end">
-          <div className="text-sm text-gray-600 bg-gray-50 px-4 py-2 rounded-md w-full">
-            <span className="font-semibold">{filteredProperties.length}</span> properties available
-          </div>
-        </div>
       </div>
 
-      {/* Search Box */}
-      <div className="relative" ref={dropdownRef}>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          <Search className="w-4 h-4 inline mr-1" />
-          Search by Address
-        </label>
-        <div className="relative">
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={handleSearchChange}
-            onFocus={handleSearchFocus}
-            placeholder="Type to search addresses..."
-            className="w-full px-4 py-3 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          {searchTerm && (
-            <button
-              onClick={() => {
-                setSearchTerm('');
-                setSelectedProperty(null);
-              }}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          )}
-        </div>
-
-        {/* Dropdown */}
-        {showDropdown && filteredProperties.length > 0 && (
-          <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-96 overflow-y-auto">
-            {filteredProperties.map(property => (
-              <button
-                key={property.id}
-                onClick={() => handlePropertySelect(property)}
-                className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-gray-100 last:border-b-0 transition-colors"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="font-medium text-gray-900">
-                      {property.primary_address}
-                    </div>
-                    <div className="flex items-center space-x-4 mt-1 text-sm text-gray-600">
-                      {property.canvas_submarket && (
-                        <span className="flex items-center">
-                          <MapPin className="w-3 h-3 mr-1" />
-                          {property.canvas_submarket}
-                        </span>
-                      )}
-                      {property.property_class && (
-                        <span className="flex items-center">
-                          <Tag className="w-3 h-3 mr-1" />
-                          Class {property.property_class}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <Building2 className="w-5 h-5 text-gray-400 ml-2 flex-shrink-0" />
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {showDropdown && filteredProperties.length === 0 && searchTerm && (
-          <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg p-4 text-center text-gray-600">
-            No properties found matching your criteria
-          </div>
-        )}
+      {/* Results Counter */}
+      <div className="mb-4">
+        <p className={`text-sm ${
+          theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+        }`}>
+          Showing {filteredProperties.length} of {properties.length} properties
+        </p>
       </div>
 
-      {/* Selected Property Display */}
+      {/* Selected Property Display with Map */}
       {selectedProperty && (
-        <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <div className="flex items-center space-x-2 mb-2">
-                <Building2 className="w-5 h-5 text-blue-600" />
-                <h3 className="text-lg font-semibold text-gray-900">Selected Property</h3>
+        <div className={`mt-6 p-4 border rounded-lg ${
+          theme === 'dark'
+            ? 'bg-blue-900 bg-opacity-30 border-blue-700'
+            : 'bg-blue-50 border-blue-200'
+        }`}>
+          <div className="flex items-start justify-between gap-4">
+            {/* Property Information */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center mb-2">
+                <Building className="w-5 h-5 text-blue-600 mr-2 flex-shrink-0" />
+                <h3 className={`text-lg font-semibold ${
+                  theme === 'dark' ? 'text-white' : 'text-gray-900'
+                }`}>
+                  Selected Property
+                </h3>
               </div>
-              <div className="space-y-1 text-sm">
-                <p className="text-gray-900">
-                  <span className="font-medium">Address:</span> {selectedProperty.primary_address}
-                </p>
-                <p className="text-gray-700">
-                  <span className="font-medium">Submarket:</span> {selectedProperty.canvas_submarket || 'N/A'}
-                </p>
-                <p className="text-gray-700">
-                  <span className="font-medium">Property Class:</span> Class {selectedProperty.property_class || 'N/A'}
-                </p>
-                <p className="text-gray-600 text-xs">
-                  <span className="font-medium">Canvas PID:</span> {selectedProperty.canvas_pid}
-                </p>
+              <p className={`font-medium mb-1 ${
+                theme === 'dark' ? 'text-gray-200' : 'text-gray-900'
+              }`}>
+                {selectedProperty.primary_address}
+              </p>
+              <div className={`flex items-center text-sm mb-1 ${
+                theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+              }`}>
+                <MapPin className="w-4 h-4 mr-1 flex-shrink-0" />
+                {selectedProperty.canvas_submarket}
               </div>
+              <div className={`flex items-center text-sm mb-1 ${
+                theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+              }`}>
+                <Tag className="w-4 h-4 mr-1 flex-shrink-0" />
+                Class {selectedProperty.property_class}
+              </div>
+              <p className={`text-xs mt-2 ${
+                theme === 'dark' ? 'text-gray-500' : 'text-gray-500'
+              }`}>
+                Property ID: {selectedProperty.canvas_pid}
+              </p>
             </div>
+
+            {/* Map Container - Square 1:1 ratio */}
+            <div className="flex-shrink-0" style={{ width: '200px', height: '200px' }}>
+              <PropertyMap 
+                latitude={parseFloat(selectedProperty.latitude)} 
+                longitude={parseFloat(selectedProperty.longitude)}
+              />
+            </div>
+
+            {/* Close Button */}
             <button
               onClick={handleClearSelection}
-              className="text-gray-400 hover:text-gray-600 ml-4"
+              className={`flex-shrink-0 p-2 rounded-lg transition-colors ${
+                theme === 'dark'
+                  ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-700'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+              }`}
               title="Clear selection"
             >
               <X className="w-5 h-5" />

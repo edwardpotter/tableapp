@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Header from './components/Header';
 import HomePage from './components/HomePage';
 import AdminPage from './components/AdminPage';
@@ -6,33 +6,71 @@ import AdminModal from './components/AdminModal';
 import './App.css';
 
 function App() {
-  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
-  const [currentPage, setCurrentPage] = useState('home');
+  const [activeTab, setActiveTab] = useState('home');
+  const [showAdminModal, setShowAdminModal] = useState(false);
+  const [theme, setTheme] = useState('light');
+
+  // Load theme preference from localStorage on mount
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme) {
+      setTheme(savedTheme);
+    }
+  }, []);
+
+  // Save theme preference to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const handleAdminClick = () => {
+    if (activeTab === 'admin') {
+      // If already on admin page, go back to home
+      setActiveTab('home');
+    } else {
+      // Show authentication modal
+      setShowAdminModal(true);
+    }
+  };
 
   const handleAdminAuthenticated = () => {
-    setIsAdminModalOpen(false);
-    setCurrentPage('admin');
+    setShowAdminModal(false);
+    setActiveTab('admin');
+  };
+
+  const handleCloseAdminModal = () => {
+    setShowAdminModal(false);
   };
 
   const handleTabChange = (tab) => {
-    setCurrentPage(tab);
+    setActiveTab(tab);
+  };
+
+  const handleThemeToggle = () => {
+    setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={`min-h-screen ${theme === 'dark' ? 'bg-gray-900' : 'bg-white'}`}>
       <Header
-        onAdminClick={() => setIsAdminModalOpen(true)}
-        activeTab={currentPage}
+        onAdminClick={handleAdminClick}
+        activeTab={activeTab}
         onTabChange={handleTabChange}
+        theme={theme}
+        onThemeToggle={handleThemeToggle}
       />
-      <main>
-        {currentPage === 'home' && <HomePage />}
-        {currentPage === 'admin' && <AdminPage />}
-      </main>
+      
+      {activeTab === 'home' ? (
+        <HomePage theme={theme} />
+      ) : (
+        <AdminPage theme={theme} />
+      )}
+
       <AdminModal
-        isOpen={isAdminModalOpen}
-        onClose={() => setIsAdminModalOpen(false)}
+        isOpen={showAdminModal}
+        onClose={handleCloseAdminModal}
         onAuthenticated={handleAdminAuthenticated}
+        theme={theme}
       />
     </div>
   );

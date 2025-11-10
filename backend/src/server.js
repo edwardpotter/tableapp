@@ -111,6 +111,13 @@ app.post('/api/admin/refresh', async (req, res) => {
 
       await client.query('COMMIT');
       
+      // Log the refresh event
+      await pool.query(
+        `INSERT INTO usage_logs (event_type, metadata)
+        VALUES ('admin_refresh', $1)`,
+        [JSON.stringify({ recordsProcessed: data.rows.length })]
+      );
+
       res.json({ 
         success: true, 
         message: 'Data refreshed successfully',
@@ -199,72 +206,185 @@ app.get('/api/properties/classes', async (req, res) => {
 });
 
 
-// Example stuff below - can kill pre-production
+// Usage Tracking
+app.post('/api/usage/log', async (req, res) => {
+  try {
+    const {
+      event_type,
+      canvas_pid,
+      primary_address,
+      canvas_submarket,
+      property_class,
+      metadata
+    } = req.body;
 
-// Test database connection
-pool.query('SELECT NOW()', (err, res) => {
-  if (err) {
-    console.error('Database connection error:', err);
-  } else {
-    console.log('Database connected:', res.rows[0]);
+    // Validate required fields
+    if (!event_type) {
+      return res.status(400).json({ error: 'event_type is required' });
+    }
+
+    // Only allow specific event types
+    if (!['table_activate', 'admin_refresh'].includes(event_type)) {
+      return res.status(400).json({ error: 'Invalid event_type. Must be table_activate or admin_refresh' });
+    }
+
+    // Get property_id if canvas_pid is provided
+    let property_id = null;
+    if (canvas_pid) {
+      const propertyResult = await pool.query(
+        'SELECT id FROM properties WHERE canvas_pid = $1',
+        [canvas_pid]
+      );
+      if (propertyResult.rows.length > 0) {
+        property_id = propertyResult.rows[0].id;
+      }
+    }
+
+    // Insert usage log
+    const result = await pool.query(
+      `INSERT INTO usage_logs 
+       (event_type, property_id, canvas_pid, primary_address, canvas_submarket, property_class, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+      [
+        event_type,
+        property_id,
+        canvas_pid,
+        primary_address,
+        canvas_submarket,
+        property_class,
+        metadata ? JSON.stringify(metadata) : null
+      ]
+    );
+
+    res.json({ success: true, log: result.rows[0] });
+  } catch (err) {
+    console.error('Error logging usage:', err);
+    res.status(500).json({ error: 'Failed to log usage event' });
   }
 });
 
-// Example: Get all items
-app.get('/api/items', async (req, res) => {
+app.get('/api/usage/analytics', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM items ORDER BY id');
+    const { start_date, end_date, limit } = req.query;
+
+    // Build date filter
+    let dateFilter = '';
+    const params = [];
+    let paramCount = 1;
+
+    if (start_date) {
+      dateFilter += ` AND created_at >= $${paramCount}`;
+      params.push(start_date);
+      paramCount++;
+    }
+
+    if (end_date) {
+      dateFilter += ` AND created_at <= $${paramCount}`;
+      params.push(end_date);
+      paramCount++;
+    }
+
+    // Get total events by type
+    const eventsByType = await pool.query(
+      `SELECT event_type, COUNT(*) as count
+       FROM usage_logs
+       WHERE 1=1 ${dateFilter}
+       GROUP BY event_type
+       ORDER BY count DESC`,
+      params
+    );
+
+    // Get most activated properties
+    const topProperties = await pool.query(
+      `SELECT 
+         canvas_pid,
+         primary_address,
+         canvas_submarket,
+         property_class,
+         COUNT(*) as activation_count
+       FROM usage_logs
+       WHERE event_type = 'table_activate' 
+         AND canvas_pid IS NOT NULL
+         ${dateFilter}
+       GROUP BY canvas_pid, primary_address, canvas_submarket, property_class
+       ORDER BY activation_count DESC
+       LIMIT ${limit || 10}`,
+      params
+    );
+
+    // Get activity by day
+    const activityByDay = await pool.query(
+      `SELECT 
+         DATE(created_at) as date,
+         COUNT(*) as total_events,
+         COUNT(*) FILTER (WHERE event_type = 'table_activate') as activations,
+         COUNT(*) FILTER (WHERE event_type = 'admin_refresh') as refreshes
+       FROM usage_logs
+       WHERE 1=1 ${dateFilter}
+       GROUP BY DATE(created_at)
+       ORDER BY date DESC
+       LIMIT ${limit || 30}`,
+      params
+    );
+
+    // Get activity by hour of day
+    const activityByHour = await pool.query(
+      `SELECT 
+         EXTRACT(HOUR FROM created_at) as hour,
+         COUNT(*) as event_count
+       FROM usage_logs
+       WHERE 1=1 ${dateFilter}
+       GROUP BY EXTRACT(HOUR FROM created_at)
+       ORDER BY hour`,
+      params
+    );
+
+    // Get total statistics
+    const totalStats = await pool.query(
+      `SELECT 
+         COUNT(*) as total_events,
+         COUNT(DISTINCT canvas_pid) FILTER (WHERE canvas_pid IS NOT NULL) as unique_properties_activated,
+         COUNT(*) FILTER (WHERE event_type = 'table_activate') as total_activations,
+         COUNT(*) FILTER (WHERE event_type = 'admin_refresh') as total_refreshes,
+         MIN(created_at) as first_event,
+         MAX(created_at) as last_event
+       FROM usage_logs
+       WHERE 1=1 ${dateFilter}`,
+      params
+    );
+
+    res.json({
+      summary: totalStats.rows[0],
+      eventsByType: eventsByType.rows,
+      topProperties: topProperties.rows,
+      activityByDay: activityByDay.rows,
+      activityByHour: activityByHour.rows
+    });
+  } catch (err) {
+    console.error('Error fetching analytics:', err);
+    res.status(500).json({ error: 'Failed to fetch analytics' });
+  }
+});
+
+app.get('/api/usage/recent', async (req, res) => {
+  try {
+    const limit = req.query.limit || 50;
+    
+    const result = await pool.query(
+      `SELECT * FROM usage_logs
+       ORDER BY created_at DESC
+       LIMIT $1`,
+      [limit]
+    );
+
     res.json(result.rows);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Database error' });
+    console.error('Error fetching recent usage:', err);
+    res.status(500).json({ error: 'Failed to fetch recent usage' });
   }
 });
 
-// Example: Create item
-app.post('/api/items', async (req, res) => {
-  const { name, description } = req.body;
-  try {
-    const result = await pool.query(
-      'INSERT INTO items (name, description) VALUES ($1, $2) RETURNING *',
-      [name, description]
-    );
-    res.status(201).json(result.rows[0]);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Database error' });
-  }
-});
-
-// Example: Update item
-app.put('/api/items/:id', async (req, res) => {
-  const { id } = req.params;
-  const { name, description } = req.body;
-  try {
-    const result = await pool.query(
-      'UPDATE items SET name = $1, description = $2 WHERE id = $3 RETURNING *',
-      [name, description, id]
-    );
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Database error' });
-  }
-});
-
-// Example: Delete item
-app.delete('/api/items/:id', async (req, res) => {
-  const { id } = req.params;
-  try {
-    await pool.query('DELETE FROM items WHERE id = $1', [id]);
-    res.json({ message: 'Item deleted' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Database error' });
-  }
-});
-
-// Example stuff end - can kill pre-production
 
 // Start server
 app.listen(port, '0.0.0.0', () => {

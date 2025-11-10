@@ -1,44 +1,63 @@
 import { useState, useEffect } from 'react';
-import { Power, Minimize2 } from 'lucide-react';
-import axios from 'axios';
 import PropertyPicker from './PropertyPicker';
+import axios from 'axios';
+import { Upload, ArrowDownNarrowWide } from 'lucide-react';
 
-function HomePage() {
+function HomePage({ theme }) {
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [lastActivatedProperty, setLastActivatedProperty] = useState(null);
-  const [showActivationModal, setShowActivationModal] = useState(false);
-  const [showFlattenModal, setShowFlattenModal] = useState(false);
-  const [countdown, setCountdown] = useState(120);
-  const [countdownSeconds, setCountdownSeconds] = useState(120);
-  const [activationError, setActivationError] = useState(null);
+  const [showCountdown, setShowCountdown] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const [countdownConfig, setCountdownConfig] = useState({ seconds: 120 });
+  const [operationType, setOperationType] = useState(null); // 'activate' or 'flatten'
+  const [countdownError, setCountdownError] = useState(null);
 
-  // Load configuration on mount
   useEffect(() => {
-    const loadConfig = async () => {
+    // Fetch countdown configuration
+    const fetchConfig = async () => {
       try {
         const response = await axios.get('/api/config');
-        setCountdownSeconds(response.data.countdownSeconds);
-        setCountdown(response.data.countdownSeconds);
+        setCountdownConfig({ seconds: response.data.countdownSeconds });
       } catch (error) {
-        console.error('Error loading config:', error);
-        setCountdownSeconds(120);
-        setCountdown(120);
+        console.error('Error fetching config:', error);
       }
     };
-    loadConfig();
+    fetchConfig();
   }, []);
 
-  const handlePropertySelect = (property) => {
-    setSelectedProperty(property);
-    console.log('Selected property:', property);
+  useEffect(() => {
+    let timer;
+    if (showCountdown && countdown > 0) {
+      timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+    } else if (showCountdown && countdown === 0) {
+      handleCountdownComplete();
+    }
+    return () => clearTimeout(timer);
+  }, [showCountdown, countdown]);
+
+  const logUsage = async (eventType, property = null, metadata = {}) => {
+    try {
+      await axios.post('/api/usage/log', {
+        event_type: eventType,
+        canvas_pid: property?.canvas_pid || null,
+        primary_address: property?.primary_address || null,
+        canvas_submarket: property?.canvas_submarket || null,
+        property_class: property?.property_class || null,
+        metadata: metadata
+      });
+    } catch (error) {
+      console.error('Error logging usage:', error);
+      // Don't throw - logging failures shouldn't break the main flow
+    }
   };
 
   const handleActivateTable = async () => {
     if (!selectedProperty) return;
 
-    setActivationError(null);
-    setShowActivationModal(true);
-    setCountdown(countdownSeconds);
+    setOperationType('activate');
+    setCountdownError(null);
+    setShowCountdown(true);
+    setCountdown(countdownConfig.seconds);
 
     try {
       // Prepare the PUT request with the canvas_pid
@@ -96,16 +115,28 @@ function HomePage() {
       );
 
       console.log('Activation response:', response.data);
+
+      // Log successful activation
+      await logUsage('table_activate', selectedProperty, {
+        preset: 'properties_overview_map'
+      });
+
+      // Mark as last activated property
+      setLastActivatedProperty(selectedProperty);
     } catch (error) {
       console.error('Error activating table:', error);
-      setActivationError(error.response?.data?.message || error.message || 'Failed to activate table');
+      setCountdownError(error.response?.data?.message || error.message || 'Failed to activate table');
+      
+      // Show error in countdown modal for 5 seconds
+      setCountdown(5);
     }
   };
 
   const handleFlattenTable = async () => {
-    setActivationError(null);
-    setShowFlattenModal(true);
-    setCountdown(countdownSeconds);
+    setOperationType('flatten');
+    setCountdownError(null);
+    setShowCountdown(true);
+    setCountdown(countdownConfig.seconds);
 
     try {
       const requestBody = {
@@ -115,27 +146,15 @@ function HomePage() {
           JSONParams: JSON.stringify({
             uecmd: "ShowUnrealPreset",
             parameters: {
-              routeURL: "https://marketcanvas.cbre.com/v1/embeddable-widget/presentations/d2fe7cc3-fc00-4ad6-b0a8-282cd7e5559b?slide=0",
               presetName: "intro",
-              queries: {
-                boundsSQL: "",
-                propertiesSQL: "",
-                pointsSQL: "",
-                focusPropertySQL: "",
-                floorsSQL: ""
-              },
-              pageContent: {
-                middle: "https://marketcanvas.cbre.com/embeddable-widget/presentations/d2fe7cc3-fc00-4ad6-b0a8-282cd7e5559b?slide=0&tvmode=on"
-              },
-              view: "2d",
-              NPRMode: false
+              view: "2d"
             }
           })
         }
       };
 
-      console.log('Sending flatten table request');
-      
+      console.log('Sending flatten request');
+
       // Make the PUT request
       const response = await axios.put(
         'https://experience-center-room-dc-srv1.cbre.com/remote/object/call',
@@ -148,183 +167,179 @@ function HomePage() {
       );
 
       console.log('Flatten response:', response.data);
+
+      // No logging for flatten (as per requirements)
     } catch (error) {
       console.error('Error flattening table:', error);
-      setActivationError(error.response?.data?.message || error.message || 'Failed to flatten table');
+      setCountdownError(error.message || 'Failed to flatten table');
+      
+      // Show error in countdown modal for 5 seconds
+      setCountdown(5);
     }
   };
 
-  // Countdown timer effect for activation modal
-  useEffect(() => {
-    if (showActivationModal && countdown > 0) {
-      const timer = setTimeout(() => {
-        setCountdown(countdown - 1);
-      }, 1000);
-      return () => clearTimeout(timer);
-    } else if (showActivationModal && countdown === 0) {
-      // Timer completed - close modal and mark property as activated
-      setLastActivatedProperty(selectedProperty);
-      setShowActivationModal(false);
-      setCountdown(countdownSeconds);
-      setActivationError(null);
-    }
-  }, [showActivationModal, countdown, selectedProperty, countdownSeconds]);
-
-  // Countdown timer effect for flatten modal
-  useEffect(() => {
-    if (showFlattenModal && countdown > 0) {
-      const timer = setTimeout(() => {
-        setCountdown(countdown - 1);
-      }, 1000);
-      return () => clearTimeout(timer);
-    } else if (showFlattenModal && countdown === 0) {
-      // Timer completed - close modal, deselect property, and return to home
-      setShowFlattenModal(false);
-      setCountdown(countdownSeconds);
-      setActivationError(null);
+  const handleCountdownComplete = () => {
+    setShowCountdown(false);
+    setCountdown(0);
+    
+    // If flatten operation, clear the selected property
+    if (operationType === 'flatten' && !countdownError) {
       setSelectedProperty(null);
       setLastActivatedProperty(null);
     }
-  }, [showFlattenModal, countdown, countdownSeconds]);
+    
+    setOperationType(null);
+    setCountdownError(null);
+  };
 
-  // Check if current property can be activated
-  const canActivate = selectedProperty && 
-    (!lastActivatedProperty || lastActivatedProperty.canvas_pid !== selectedProperty.canvas_pid);
+  const isActivateDisabled =
+    !selectedProperty ||
+    (lastActivatedProperty?.canvas_pid === selectedProperty?.canvas_pid);
+
+  // Calculate progress percentage for progress bar
+  const progressPercentage = countdownConfig.seconds > 0
+    ? ((countdownConfig.seconds - countdown) / countdownConfig.seconds) * 100
+    : 0;
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
-      <h1 className="text-3xl font-bold mb-2">Welcome to the Table Control Application</h1>
-      <p className="text-gray-600 mb-8">Select a property to get started</p>
-      
-      <PropertyPicker onPropertySelect={handlePropertySelect} />
+    <div className={`min-h-screen ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        {/* Welcome Section */}
+        <div className="text-center mb-8">
+          <h1 className={`text-4xl font-bold mb-3 ${
+            theme === 'dark' ? 'text-white' : 'text-gray-900'
+          }`}>
+            Experience Center Table Control
+          </h1>
+          <p className={`text-lg ${
+            theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+          }`}>
+            Select a property to display on the interactive table
+          </p>
+        </div>
 
-      {/* Action Buttons */}
-      <div className="mt-6 flex flex-col sm:flex-row justify-center gap-4">
-        {/* Activate Table Button */}
-        {selectedProperty && (
+        {/* Property Picker */}
+        <div className="mb-8">
+          <PropertyPicker
+            selectedProperty={selectedProperty}
+            onSelectProperty={setSelectedProperty}
+            theme={theme}
+          />
+        </div>
+
+        {/* Control Buttons */}
+        <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
           <button
             onClick={handleActivateTable}
-            disabled={!canActivate}
-            className={`flex items-center justify-center space-x-2 px-8 py-4 rounded-lg text-lg font-semibold transition-all ${
-              canActivate
-                ? 'bg-green-600 hover:bg-green-700 text-white shadow-lg hover:shadow-xl'
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            disabled={isActivateDisabled}
+            className={`flex items-center justify-center px-8 py-4 rounded-lg text-white font-semibold text-lg transition-all ${
+              isActivateDisabled
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-green-600 hover:bg-green-700 hover:shadow-lg'
             }`}
           >
-            <Power className="w-6 h-6" />
-            <span>Activate Table</span>
+            <Upload className="w-6 h-6 mr-2" />
+            Activate Table
           </button>
-        )}
 
-        {/* Flatten Table Button */}
-        <button
-          onClick={handleFlattenTable}
-          className="flex items-center justify-center space-x-2 px-8 py-4 rounded-lg text-lg font-semibold transition-all bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl"
-        >
-          <Minimize2 className="w-6 h-6" />
-          <span>Flatten Table</span>
-        </button>
+          <button
+            onClick={handleFlattenTable}
+            className="flex items-center justify-center px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-lg rounded-lg transition-all hover:shadow-lg"
+          >
+            <ArrowDownNarrowWide className="w-6 h-6 mr-2" />
+            Flatten Table
+          </button>
+        </div>
+
+        {/* Instructions */}
+        <div className={`rounded-lg shadow-md p-6 max-w-2xl mx-auto ${
+          theme === 'dark' ? 'bg-gray-800' : 'bg-white'
+        }`}>
+          <h2 className={`text-xl font-semibold mb-3 ${
+            theme === 'dark' ? 'text-white' : 'text-gray-900'
+          }`}>
+            Usage Guide
+          </h2>
+          <ol className={`list-decimal list-inside space-y-2 ${
+            theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+          }`}>
+            <li>Search for and select a property from the picker above</li>
+            <li>Click "Activate Table" to display the property on the interactive table</li>
+            <li>Click "Flatten Table" to return to CBRE logo on table</li>
+            <li>Select a different property to activate it on the table...</li>
+          </ol>
+        </div>
       </div>
 
-      {selectedProperty && !canActivate && (
-        <p className="text-center text-sm text-gray-500 mt-2">
-          Table already activated for this property. Select a different property to activate again.
-        </p>
-      )}
-
-      {/* Activation Modal with Countdown */}
-      {showActivationModal && selectedProperty && (
+      {/* Countdown Modal */}
+      {showCountdown && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 shadow-xl">
-            <div className="text-center">
-              <div className="mb-6">
-                <div className={`mx-auto w-16 h-16 rounded-full flex items-center justify-center ${
-                  activationError ? 'bg-red-100' : 'bg-green-100'
+          <div className={`rounded-lg p-8 max-w-md w-full mx-4 ${
+            theme === 'dark' ? 'bg-gray-800' : 'bg-white'
+          }`}>
+            {countdownError ? (
+              <>
+                <h3 className="text-2xl font-bold text-red-600 mb-4 text-center">Error</h3>
+                <p className={`text-center mb-6 ${
+                  theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
                 }`}>
-                  <Power className={`w-8 h-8 ${activationError ? 'text-red-600' : 'text-green-600'}`} />
-                </div>
-              </div>
-              
-              <h3 className={`text-2xl font-bold mb-4 ${activationError ? 'text-red-900' : 'text-gray-900'}`}>
-                {activationError ? 'Activation Error' : 'Command Sent'}
-              </h3>
-              
-              <div className="mb-6">
-                <p className="text-gray-700 mb-2">Property ID:</p>
-                <p className="text-lg font-mono font-semibold text-blue-600 break-all">
-                  {selectedProperty.canvas_pid}
+                  {countdownError}
                 </p>
-              </div>
-
-              {activationError && (
-                <div className="mb-6 p-3 bg-red-50 border border-red-200 rounded">
-                  <p className="text-sm text-red-800">{activationError}</p>
+                <div className="flex justify-center">
+                  <div className="text-6xl font-bold text-red-600">{countdown}</div>
                 </div>
-              )}
-
-              <div className="mb-6">
-                <div className={`text-6xl font-bold mb-2 ${activationError ? 'text-red-600' : 'text-green-600'}`}>
-                  {countdown}
-                </div>
-                <p className="text-gray-600">
-                  {countdown === 1 ? 'second' : 'seconds'} remaining
-                </p>
-              </div>
-
-              <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                <div 
-                  className={`h-2 transition-all duration-1000 ease-linear ${
-                    activationError ? 'bg-red-600' : 'bg-green-600'
+              </>
+            ) : (
+              <>
+                <h3
+                  className={`text-2xl font-bold mb-4 text-center ${
+                    operationType === 'activate' ? 'text-green-600' : 'text-blue-600'
                   }`}
-                  style={{ width: `${((countdownSeconds - countdown) / countdownSeconds) * 100}%` }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Flatten Modal with Countdown */}
-      {showFlattenModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 shadow-xl">
-            <div className="text-center">
-              <div className="mb-6">
-                <div className={`mx-auto w-16 h-16 rounded-full flex items-center justify-center ${
-                  activationError ? 'bg-red-100' : 'bg-blue-100'
+                >
+                  {operationType === 'activate' ? 'Activating Table' : 'Flattening Table'}
+                </h3>
+                {operationType === 'activate' && selectedProperty && (
+                  <div className="mb-6 text-center">
+                    <p className={`font-medium ${
+                      theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
+                    }`}>
+                      {selectedProperty.primary_address}
+                    </p>
+                  </div>
+                )}
+                {operationType === 'flatten' && (
+                  <p className={`text-center mb-6 ${
+                    theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
+                    Resetting table to CBRE logo...
+                  </p>
+                )}
+                <div className="flex justify-center mb-4">
+                  <div
+                    className={`text-6xl font-bold ${
+                      operationType === 'activate' ? 'text-green-600' : 'text-blue-600'
+                    }`}
+                  >
+                    {countdown}
+                  </div>
+                </div>
+                <div className={`w-full rounded-full h-3 overflow-hidden ${
+                  theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'
                 }`}>
-                  <Minimize2 className={`w-8 h-8 ${activationError ? 'text-red-600' : 'text-blue-600'}`} />
+                  <div
+                    className={`h-full transition-all duration-1000 ${
+                      operationType === 'activate' ? 'bg-green-600' : 'bg-blue-600'
+                    }`}
+                    style={{ width: `${progressPercentage}%` }}
+                  />
                 </div>
-              </div>
-              
-              <h3 className={`text-2xl font-bold mb-4 ${activationError ? 'text-red-900' : 'text-gray-900'}`}>
-                {activationError ? 'Flatten Error' : 'Flattening Table...'}
-              </h3>
-
-              {activationError && (
-                <div className="mb-6 p-3 bg-red-50 border border-red-200 rounded">
-                  <p className="text-sm text-red-800">{activationError}</p>
-                </div>
-              )}
-
-              <div className="mb-6">
-                <div className={`text-6xl font-bold mb-2 ${activationError ? 'text-red-600' : 'text-blue-600'}`}>
-                  {countdown}
-                </div>
-                <p className="text-gray-600">
-                  {countdown === 1 ? 'second' : 'seconds'} remaining
+                <p className={`text-sm text-center mt-4 ${
+                  theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                }`}>
+                  Please wait for table to be ready for next command...
                 </p>
-              </div>
-
-              <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                <div 
-                  className={`h-2 transition-all duration-1000 ease-linear ${
-                    activationError ? 'bg-red-600' : 'bg-blue-600'
-                  }`}
-                  style={{ width: `${((countdownSeconds - countdown) / countdownSeconds) * 100}%` }}
-                />
-              </div>
-            </div>
+              </>
+            )}
           </div>
         </div>
       )}

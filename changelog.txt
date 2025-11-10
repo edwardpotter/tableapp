@@ -1,3 +1,15 @@
+vFuture
+admin page section structure for server restarts
+admin function to restart Unreal engine on MS1 or MS2
+admin function to restart MS1 or MS2 servers
+
+v0.02
+Added usage tracking table for table activations and data refreshes
+Added usage analytics to admin screen
+Cleaned out previous example DB handling APIs and schema setup
+Added mapbox reference street map for property to Selected Property card
+Added dark and light mode themes
+
 v0.01
 Added property picker
 Added flatten table command

@@ -1,3 +1,7 @@
+-- Drop old example tables if they exist
+DROP TABLE IF EXISTS items CASCADE;
+DROP TABLE IF EXISTS categories CASCADE;
+
 -- Create properties table for external data
 CREATE TABLE IF NOT EXISTS properties (
     id SERIAL PRIMARY KEY,
@@ -17,28 +21,21 @@ CREATE INDEX IF NOT EXISTS idx_properties_canvas_pid ON properties(canvas_pid);
 -- Create index on latitude/longitude for geospatial queries
 CREATE INDEX IF NOT EXISTS idx_properties_location ON properties(latitude, longitude);
 
---Example stuff can be killed pre-production
--- Create example table
-CREATE TABLE IF NOT EXISTS items (
+-- Usage tracking table
+CREATE TABLE IF NOT EXISTS usage_logs (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Create example related table
-CREATE TABLE IF NOT EXISTS categories (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
+    event_type VARCHAR(50) NOT NULL,
+    property_id INTEGER REFERENCES properties(id) ON DELETE SET NULL,
+    canvas_pid VARCHAR(255),
+    primary_address TEXT,
+    canvas_submarket VARCHAR(255),
+    property_class VARCHAR(255),
+    metadata JSONB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Add foreign key relationship
-ALTER TABLE items ADD COLUMN category_id INTEGER REFERENCES categories(id);
-
--- Insert sample data
-INSERT INTO categories (name) VALUES ('Category 1'), ('Category 2');
-INSERT INTO items (name, description, category_id) VALUES 
-    ('Item 1', 'Description 1', 1),
-    ('Item 2', 'Description 2', 2);
+-- Create indexes for usage_logs
+CREATE INDEX IF NOT EXISTS idx_usage_logs_event_type ON usage_logs(event_type);
+CREATE INDEX IF NOT EXISTS idx_usage_logs_created_at ON usage_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_usage_logs_canvas_pid ON usage_logs(canvas_pid);
+CREATE INDEX IF NOT EXISTS idx_usage_logs_property_id ON usage_logs(property_id);
