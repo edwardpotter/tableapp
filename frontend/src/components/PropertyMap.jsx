@@ -2,10 +2,10 @@ import { useEffect, useRef } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
-// You'll need to set your Mapbox access token
-const MAPBOX_TOKEN = 'pk.eyJ1IjoiamVlcHR4IiwiYSI6ImNtaG1sa21yOTJiZXQyanB5dWhwdzR3ZG8ifQ.IYOf3_tj6wlNDP1Q4WVJJQ';
+// Get Mapbox token from environment variable
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
-function PropertyMap({ latitude, longitude }) {
+function PropertyMap({ latitude, longitude, theme }) {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const markerRef = useRef(null);
@@ -13,13 +13,18 @@ function PropertyMap({ latitude, longitude }) {
   useEffect(() => {
     if (!latitude || !longitude) return;
 
+    // Determine map style based on theme
+    const mapStyle = theme === 'dark' 
+      ? 'mapbox://styles/mapbox/dark-v11' 
+      : 'mapbox://styles/mapbox/streets-v12';
+
     // Initialize map only once
     if (!mapRef.current) {
       mapboxgl.accessToken = MAPBOX_TOKEN;
       
       mapRef.current = new mapboxgl.Map({
         container: mapContainerRef.current,
-        style: 'mapbox://styles/mapbox/streets-v12',
+        style: mapStyle,
         center: [longitude, latitude],
         zoom: 14,
         attributionControl: false
@@ -47,6 +52,16 @@ function PropertyMap({ latitude, longitude }) {
       }
     };
   }, [latitude, longitude]);
+
+  // Handle theme changes
+  useEffect(() => {
+    if (mapRef.current) {
+      const mapStyle = theme === 'dark' 
+        ? 'mapbox://styles/mapbox/dark-v11' 
+        : 'mapbox://styles/mapbox/streets-v12';
+      mapRef.current.setStyle(mapStyle);
+    }
+  }, [theme]);
 
   return (
     <div 

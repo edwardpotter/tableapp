@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import PropertyPicker from './PropertyPicker';
 import axios from 'axios';
-import { Upload, ArrowDownNarrowWide } from 'lucide-react';
+import { Upload, ArrowDownNarrowWide, Globe } from 'lucide-react';
 
 function HomePage({ theme }) {
   const [selectedProperty, setSelectedProperty] = useState(null);
@@ -11,13 +11,18 @@ function HomePage({ theme }) {
   const [countdownConfig, setCountdownConfig] = useState({ seconds: 120 });
   const [operationType, setOperationType] = useState(null); // 'activate' or 'flatten'
   const [countdownError, setCountdownError] = useState(null);
+  
+  // HTML Content section state
+  const [showHtmlPanel, setShowHtmlPanel] = useState(false);
+  const [htmlUrl, setHtmlUrl] = useState('https://picsum.photos/1920');
 
   useEffect(() => {
-    // Fetch countdown configuration
+    // Fetch countdown configuration and HTML panel setting
     const fetchConfig = async () => {
       try {
         const response = await axios.get('/api/config');
         setCountdownConfig({ seconds: response.data.countdownSeconds });
+        setShowHtmlPanel(response.data.showHtmlPanel || false);
       } catch (error) {
         console.error('Error fetching config:', error);
       }
@@ -178,6 +183,69 @@ function HomePage({ theme }) {
     }
   };
 
+  const handleDisplayHtmlPage = async () => {
+    if (!htmlUrl) {
+      alert('Please enter a URL');
+      return;
+    }
+
+    setOperationType('html');
+    setCountdownError(null);
+    setShowCountdown(true);
+    setCountdown(countdownConfig.seconds);
+
+    try {
+      const requestBody = {
+        objectPath: "/Game/CBRE_MC/PinTable/PinTable_Cesium_Mockup.PinTable_Cesium_Mockup:PersistentLevel.BP_CameraRig_C_UAID_047C16D0FB2829DF01_1089232868",
+        functionName: "RemoteWebCommand",
+        parameters: {
+          JSONParams: JSON.stringify({
+            uecmd: "ShowUnrealPreset",
+            parameters: {
+              routeURL: "",
+              presetName: "media",
+              queries: {
+                boundsSQL: "",
+                propertiesSQL: "",
+                pointsSQL: "",
+                focusPropertySQL: "",
+                floorsSQL: ""
+              },
+              pageContent: {
+                middle: htmlUrl
+              },
+              view: "2d",
+              NPRMode: false
+            }
+          })
+        }
+      };
+
+      console.log('Sending display HTML page request for URL:', htmlUrl);
+
+      // Make the PUT request
+      const response = await axios.put(
+        'https://experience-center-room-dc-srv1.cbre.com/remote/object/call',
+        requestBody,
+        {
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      console.log('Display HTML page response:', response.data);
+
+      // No logging for HTML display (similar to flatten)
+    } catch (error) {
+      console.error('Error displaying HTML page:', error);
+      setCountdownError(error.message || 'Failed to display HTML page');
+      
+      // Show error in countdown modal for 5 seconds
+      setCountdown(5);
+    }
+  };
+
   const handleCountdownComplete = () => {
     setShowCountdown(false);
     setCountdown(0);
@@ -187,6 +255,8 @@ function HomePage({ theme }) {
       setSelectedProperty(null);
       setLastActivatedProperty(null);
     }
+    
+    // HTML display doesn't need any cleanup
     
     setOperationType(null);
     setCountdownError(null);
@@ -224,32 +294,61 @@ function HomePage({ theme }) {
             selectedProperty={selectedProperty}
             onSelectProperty={setSelectedProperty}
             theme={theme}
+            onActivateTable={handleActivateTable}
+            onFlattenTable={handleFlattenTable}
+            isActivateDisabled={isActivateDisabled}
           />
         </div>
 
-        {/* Control Buttons */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
-          <button
-            onClick={handleActivateTable}
-            disabled={isActivateDisabled}
-            className={`flex items-center justify-center px-8 py-4 rounded-lg text-white font-semibold text-lg transition-all ${
-              isActivateDisabled
-                ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-green-600 hover:bg-green-700 hover:shadow-lg'
-            }`}
-          >
-            <Upload className="w-6 h-6 mr-2" />
-            Activate Table
-          </button>
-
-          <button
-            onClick={handleFlattenTable}
-            className="flex items-center justify-center px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-lg rounded-lg transition-all hover:shadow-lg"
-          >
-            <ArrowDownNarrowWide className="w-6 h-6 mr-2" />
-            Flatten Table
-          </button>
-        </div>
+        {/* Show Web Content Section - Only shown if SHOW_HTML_PANEL is TRUE */}
+        {showHtmlPanel && (
+          <div className={`rounded-lg shadow-md p-6 mb-8 ${
+            theme === 'dark' ? 'bg-gray-800' : 'bg-white'
+          }`}>
+            <h2 className={`text-2xl font-semibold mb-3 flex items-center ${
+              theme === 'dark' ? 'text-white' : 'text-gray-900'
+            }`}>
+              <Globe className="w-5 h-5 mr-2" />
+              Show Web Content
+            </h2>
+            <p className={`mb-4 text-sm ${
+              theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+            }`}>
+              Display a webpage or image on the table
+            </p>
+            <div>
+              <label
+                htmlFor="url-input"
+                className={`block text-sm font-medium mb-2 ${
+                  theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                }`}
+              >
+                URL
+              </label>
+              <input
+                id="url-input"
+                type="text"
+                value={htmlUrl}
+                onChange={(e) => setHtmlUrl(e.target.value)}
+                placeholder="Enter URL..."
+                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  theme === 'dark'
+                    ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
+                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                }`}
+              />
+            </div>
+            <div className="flex justify-center mt-6">
+              <button
+                onClick={handleDisplayHtmlPage}
+                className="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-lg rounded-lg transition-all hover:shadow-lg flex items-center justify-center"
+              >
+                <Globe className="w-5 h-5 mr-2" />
+                Display Content
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Instructions */}
         <div className={`rounded-lg shadow-md p-6 max-w-2xl mx-auto ${
@@ -293,10 +392,18 @@ function HomePage({ theme }) {
               <>
                 <h3
                   className={`text-2xl font-bold mb-4 text-center ${
-                    operationType === 'activate' ? 'text-green-600' : 'text-blue-600'
+                    operationType === 'activate' 
+                      ? 'text-green-600' 
+                      : operationType === 'flatten' 
+                      ? 'text-blue-600' 
+                      : 'text-indigo-600'
                   }`}
                 >
-                  {operationType === 'activate' ? 'Activating Table' : 'Flattening Table'}
+                  {operationType === 'activate' 
+                    ? 'Activating Table' 
+                    : operationType === 'flatten' 
+                    ? 'Flattening Table'
+                    : 'Displaying HTML Content'}
                 </h3>
                 {operationType === 'activate' && selectedProperty && (
                   <div className="mb-6 text-center">
@@ -314,10 +421,21 @@ function HomePage({ theme }) {
                     Resetting table to CBRE logo...
                   </p>
                 )}
+                {operationType === 'html' && (
+                  <p className={`text-center mb-6 ${
+                    theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
+                    Loading: {htmlUrl}
+                  </p>
+                )}
                 <div className="flex justify-center mb-4">
                   <div
                     className={`text-6xl font-bold ${
-                      operationType === 'activate' ? 'text-green-600' : 'text-blue-600'
+                      operationType === 'activate' 
+                        ? 'text-green-600' 
+                        : operationType === 'flatten' 
+                        ? 'text-blue-600' 
+                        : 'text-indigo-600'
                     }`}
                   >
                     {countdown}
@@ -328,7 +446,11 @@ function HomePage({ theme }) {
                 }`}>
                   <div
                     className={`h-full transition-all duration-1000 ${
-                      operationType === 'activate' ? 'bg-green-600' : 'bg-blue-600'
+                      operationType === 'activate' 
+                        ? 'bg-green-600' 
+                        : operationType === 'flatten' 
+                        ? 'bg-blue-600' 
+                        : 'bg-indigo-600'
                     }`}
                     style={{ width: `${progressPercentage}%` }}
                   />

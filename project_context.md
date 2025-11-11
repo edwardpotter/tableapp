@@ -4,7 +4,7 @@
 tableapp
 
 ## Project Overview
-A single-page web application with client-server architecture, containerized with Docker for cross-platform deployment. The app stores relational data server-side, can make POST/PUT requests to external APIs, and provides property selection and table control functionality for an interactive experience center. Includes usage tracking for table activation and admin refresh events.
+A single-page web application with client-server architecture, containerized with Docker for cross-platform deployment. The app stores relational data server-side, can make POST/PUT requests to external APIs, and provides property selection and table control functionality for an interactive experience center. Features include: property search with theme-aware map visualization, dark mode theme support, web content display, server management controls, admin-configurable settings with persistent storage, usage tracking for table activation and admin refresh events, and comprehensive analytics dashboard.
 
 ## Technology Stack
 
@@ -14,6 +14,7 @@ A single-page web application with client-server architecture, containerized wit
 - **Styling:** Tailwind CSS 3.4
 - **HTTP Client:** Axios
 - **Icons:** lucide-react 0.454.0
+- **Mapping:** Mapbox GL JS 3.0+ (for property location visualization)
 - **Dev Server:** Vite dev server with HMR
 - **Port:** 5173 (development)
 
@@ -45,14 +46,15 @@ tableapp/
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── Header.jsx         # Navigation bar with tabs and admin access
+│   │   │   ├── Header.jsx         # Navigation bar with theme toggle and admin access
 │   │   │   ├── HomePage.jsx       # Property picker and table control interface
 │   │   │   ├── AdminPage.jsx      # Administration screen with data refresh and analytics
 │   │   │   ├── AdminModal.jsx     # Authentication modal for admin access
 │   │   │   ├── LoadingModal.jsx   # Reusable loading indicator modal
-│   │   │   └── PropertyPicker.jsx # Property search and filter component
+│   │   │   ├── PropertyPicker.jsx # Property search, filter, and selection component
+│   │   │   └── PropertyMap.jsx    # Mapbox GL map component for property location
 │   │   ├── utils/                 # Helper functions (to be added)
-│   │   ├── App.jsx                # Main application component with routing
+│   │   ├── App.jsx                # Main application component with theme management
 │   │   ├── App.css
 │   │   ├── index.css              # Tailwind imports
 │   │   └── main.jsx               # Entry point
@@ -189,6 +191,16 @@ tableapp/
   - Automatically logs 'admin_refresh' event to usage_logs
   - Returns: `{ success: boolean, message: string, recordsProcessed: number }`
 
+### Configuration Management
+- **POST** `/api/admin/config` - Update configuration settings
+  - Body: `{ showHtmlPanel: boolean }`
+  - Returns: `{ success: boolean, message: string, showHtmlPanel: boolean }`
+  - Behavior:
+    - Updates process.env.SHOW_HTML_PANEL
+    - Writes to backend/.env file
+    - Preserves all other environment variables
+    - Changes persist across server restarts
+
 ## Application Features
 
 ### User Interface
@@ -197,60 +209,60 @@ tableapp/
 - **Header Component**: Fixed navigation bar with:
   - Tab navigation (currently: Home tab)
   - Admin tab (visible only when on admin page)
+  - Theme toggle button (Moon/Sun icon) for light/dark mode switching
   - Gear icon button (top-right) for admin access
+
+#### Theme System
+- **Light Mode**: Default theme with white backgrounds and dark text
+- **Dark Mode**: Dark gray backgrounds (gray-900, gray-800) with light text
+- **Toggle**: Moon icon (light mode) / Sun icon (dark mode) in header
+- **Persistence**: Theme preference saved to localStorage
+- **Coverage**: All components support both themes with appropriate color schemes
 
 #### Pages
 
-**1. Home Page (`/`)**
-- Property selection interface
-- Property search and filtering
-- Table control buttons:
-  - **Activate Table** - Activates selected property on remote table
-  - **Flatten Table** - Resets table to intro presentation
-- Welcome message and instructions
-- Usage tracking: Logs successful table activations only
+##### HomePage.jsx - Main interface with property control and web content display
+  - Property picker with integrated action buttons
+  - Show Web Content section (configurable via admin)
+  - Full-width sections for better organization
+  - Centered action buttons following consistent pattern
+  - Countdown modals for operations (activate, flatten, display content)
+  - Theme support throughout
 
-**2. Admin Page** (requires authentication)
-- Accessed via gear icon → code entry
-- Features:
-  - **Refresh Data** button - Fetches latest properties from CARTO API
-  - Confirmation and loading modals
-  - Success/failure feedback with record counts
-  - **Usage Analytics Dashboard** - Comprehensive usage statistics
-    - Date range filter (All Time, Today, Last 7 Days, Last 30 Days)
-    - Summary cards (total events, activations, unique properties)
-    - Events by type breakdown
-    - Top activated properties table
-    - Activity by hour visualization (24-hour bar chart)
-    - Recent activity log modal (last 100 events)
+##### AdminPage.jsx - Administration interface
+  - Server Management section with restart controls:
+    - Restart UE on Table
+    - Restart UE on Screen  
+    - Restart Table Server
+    - Restart Screen Server
+  - Data Management section with CARTO API refresh
+  - Usage Analytics dashboard with date filtering
+  - System Configuration section:
+    - Show Web Content toggle
+    - Persists changes to .env file
+  - Theme support throughout
 
 ### Property Management
 
-#### Property Picker Component
-**Search & Filter Features:**
-- **Address Search**: Real-time search with dropdown
-  - As-you-type filtering
-  - Click outside to close
-  - Clear button to reset search
-- **Submarket Filter**: Dropdown with all unique submarkets
-- **Property Class Filter**: Dropdown with all classes (A, B, C, etc.)
-- **Results Counter**: Shows filtered property count
+#### PropertyPicker.jsx - Property search, filter, and selection with action buttons
+  - Search by address with real-time filtering
+  - Filter by submarket and property class
+  - Displays property details and map when selected
+  - Action buttons at bottom (Activate Table, Flatten Table)
+  - Centered button layout
+  - Theme-aware styling
 
-**Display Features:**
-- Property cards show:
-  - Primary address
-  - Submarket (with map pin icon)
-  - Property class (with tag icon)
-  - Building icon
-- Selected property highlighted in blue card
-- Shows: Address, Submarket, Class, Canvas PID
-- Clear button to deselect
+### Map Integration
 
-**UX:**
-- Loading state while fetching data
-- Icons for visual clarity
-- Hover effects on dropdown items
-- Responsive grid layout
+#### PropertyMap.jsx - Theme-aware Mapbox map component
+  - Accepts theme prop (light/dark)
+  - Mapbox token from environment variable
+  - Dynamic map style switching
+  - Light mode: Streets v12 style
+  - Dark mode: Dark v11 style
+  - Blue marker for property location
+  - Navigation controls
+  - Initialized only when property selected
 
 ### Table Control Features
 
@@ -281,18 +293,37 @@ tableapp/
 - **Modal**: Blue theme, "Flattening Table..." message, configurable countdown
 - **API Call**: See critical_code.md for exact format
 
+#### Show Web Content (Admin-Configurable)
+- **Location**: Home page (full-width section)
+- **Features**:
+  - URL input field (full-width)
+  - Display Content button (centered below input)
+  - Default URL: https://picsum.photos/1920
+  - Displays web content on table via PUT request
+  - Configurable visibility via SHOW_HTML_PANEL environment variable
+  - Admin toggle in System Configuration section
+  - No usage logging (intentional)
+  - Theme-aware styling
+- **API Integration**:
+  - Endpoint: experience-center-room-dc-srv1.cbre.com/remote/object/call
+  - Preset: "media"
+  - URL position: pageContent.middle
+  - View: "2d"
+
 ### Modal System
 
 #### Admin Authentication Modal
 - 4-digit numeric input (password type)
 - Error handling for invalid codes
 - Callbacks for authentication success/failure
+- Theme-aware styling
 
 #### Loading Modal
 - Reusable component
 - Spinning loader icon
 - Customizable message prop
 - Full-screen overlay
+- Theme-aware styling
 
 #### Countdown Modals
 - Both Activate and Flatten operations use countdown modals
@@ -302,6 +333,29 @@ tableapp/
 - Error state handling with detailed messages
 - Non-dismissible until countdown completes
 - Configurable duration via environment variable
+- Theme-aware styling
+
+### Server Management (Admin Only)
+  - **Location**: Admin page (before Data Management)
+  - **Features**:
+    - 4 server action buttons:
+      - Restart UE on Table (purple)
+      - Restart UE on Screen (purple)
+      - Restart Table Server (orange)
+      - Restart Screen Server (orange)
+    - Confirmation modal for all actions
+    - Currently logs to console (backend implementation pending)
+    - Theme-aware styling
+
+### System Configuration (Admin Only)
+  - **Location**: Admin page (after Usage Analytics)
+  - **Features**:
+    - Show Web Content checkbox toggle
+    - Updates backend/.env file directly
+    - Changes persist across server restarts
+    - Loading indicator during updates
+    - Error handling for file write failures
+    - Theme-aware styling
 
 ## Configuration Files
 
@@ -325,6 +379,27 @@ export default defineConfig({
 })
 ```
 
+### frontend/package.json (key dependencies)
+```json
+{
+  "dependencies": {
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "axios": "^1.6.0",
+    "lucide-react": "^0.454.0",
+    "mapbox-gl": "^3.0.0"
+  }
+}
+```
+
+### Frontend (.env)
+```bash
+# Mapbox API Token
+VITE_MAPBOX_TOKEN=your_mapbox_token_here
+```
+
+**Note:** In Vite, environment variables must be prefixed with `VITE_` to be exposed to client-side code.
+
 ### backend/.env
 ```
 PORT=3000
@@ -335,6 +410,8 @@ DB_USER=postgres
 DB_PASSWORD=postgres
 ADMIN_CODE=0710
 COUNTDOWN_SECONDS=120
+# Feature Toggles
+SHOW_HTML_PANEL=TRUE              # Controls Show Web Content section visibility
 ```
 
 **Environment Variables:**
@@ -432,6 +509,46 @@ All services connected via Docker network, with volume mounts for development ho
 
 **CRITICAL:** See `critical_code.md` for exact API call formats. These patterns must be preserved exactly as documented.
 
+### Mapbox API
+**Purpose:** Display interactive street maps with property locations
+
+**Service:** Mapbox GL JS v3.0+
+
+**Authentication:** Access token (stored in PropertyMap.jsx)
+- **Format**: Starts with `pk.` for public access
+- **Acquisition**: Free tier available at https://account.mapbox.com/
+- **Usage**: Embedded in PropertyMap component
+
+**Features Used:**
+- Streets v12 map style (clean, readable)
+- Marker API (blue pins for property locations)
+- Navigation controls (zoom in/out buttons)
+- Interactive pan and zoom
+- Geocoding via latitude/longitude
+
+**Configuration:**
+```javascript
+mapboxgl.accessToken = 'YOUR_MAPBOX_ACCESS_TOKEN';
+
+const map = new mapboxgl.Map({
+  container: mapContainerRef.current,
+  style: 'mapbox://styles/mapbox/streets-v12',
+  center: [longitude, latitude],
+  zoom: 15,
+  attributionControl: false
+});
+
+const marker = new mapboxgl.Marker({ color: '#2563eb' })
+  .setLngLat([longitude, latitude])
+  .addTo(map);
+```
+
+**Best Practices:**
+- Store token in environment variable for production
+- Use `.env` file: `VITE_MAPBOX_TOKEN=your_token_here`
+- Access via: `import.meta.env.VITE_MAPBOX_TOKEN`
+- Set domain restrictions in Mapbox dashboard for security
+
 ## Docker Commands
 
 ### Development
@@ -486,6 +603,8 @@ docker-compose exec backend npm install <package>
 - ✅ API proxy from frontend to backend
 - ✅ Git version control with GitHub
 - ✅ Tabbed navigation interface
+- ✅ **Dark mode theme system with toggle**
+- ✅ **Theme persistence via localStorage**
 - ✅ Admin authentication system (4-digit code)
 - ✅ Admin page with data refresh functionality
 - ✅ Modal-based authentication flow
@@ -498,6 +617,9 @@ docker-compose exec backend npm install <package>
   - Address (fuzzy search)
   - Submarket (exact match)
   - Property class (exact match)
+- ✅ **Interactive map visualization (Mapbox)**
+- ✅ **Property location display with markers**
+- ✅ **1:1 ratio map in selected property card**
 - ✅ Remote table control integration
 - ✅ Property activation on physical table
 - ✅ Table flatten/reset functionality
@@ -514,19 +636,10 @@ docker-compose exec backend npm install <package>
 - ✅ Top properties reporting
 
 ### To Be Implemented
-- ⏳ Additional navigation tabs/pages
-- ⏳ More admin functions beyond data refresh
-- ⏳ Session management for admin access
-- ⏳ Rate limiting for API endpoints
-- ⏳ User authentication/authorization (non-admin)
-- ⏳ Database migrations system
+- ⏳ Additional table operation functions
+- ⏳ Admin functions for remote server restarts
+- ⏳ Creation and navigatable playback of saved property list for table activations
 - ⏳ Production deployment configuration
-- ⏳ Testing suite
-- ⏳ Property history/analytics
-- ⏳ Favorites/bookmarks system
-- ⏳ Property comparison features
-- ⏳ Advanced geospatial queries
-- ⏳ Export analytics to CSV/Excel
 
 ## Dependencies
 
@@ -537,7 +650,8 @@ docker-compose exec backend npm install <package>
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "axios": "^1.6.0",
-    "lucide-react": "^0.454.0"
+    "lucide-react": "^0.454.0",
+    "mapbox-gl": "^3.0.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",
@@ -574,14 +688,14 @@ docker-compose exec backend npm install <package>
 ## Security Notes
 - Admin authentication code configurable via `ADMIN_CODE` environment variable
 - Default admin code: "0710" (should be changed for production)
-- **TODO**: Implement proper session management
-- **TODO**: Add rate limiting to authentication endpoint
 - **TODO**: Move CARTO API token to environment variable
+- **TODO**: Move Mapbox token to environment variable for production
 - `.env` files are gitignored for security
 - Database credentials should be changed for production
 - External API calls use HTTPS
 - CORS configured for development environment
 - Usage logging does not capture PII
+- Mapbox tokens should be domain-restricted in production
 
 ## Data Flow
 
@@ -606,16 +720,18 @@ docker-compose exec backend npm install <package>
 3. User applies submarket/class filters
 4. Results update in real-time
 5. User clicks property from dropdown
-6. Property details displayed in blue card
-7. "Activate Table" button becomes available
-8. Property data stored in component state
+6. Property details displayed in blue card **with map**
+7. **Map initializes with property's coordinates**
+8. **Blue marker appears at property location**
+9. "Activate Table" button becomes available
+10. Property data stored in component state
 
 ### Table Activation Flow
-1. User selects property
+1. User selects property (sees location on map)
 2. User clicks "Activate Table"
 3. Frontend prepares PUT request with:
    - canvas_pid
-   - latitude/longitude
+   - latitude/longitude (from property data)
    - Full SQL query with property filter
    - Widget URLs with canvas_pid
    - Camera viewState configuration
@@ -633,11 +749,65 @@ docker-compose exec backend npm install <package>
 5. No usage logging (intentional)
 6. After countdown:
    - Modal closes
-   - Selected property cleared
+   - Selected property cleared (map disappears)
    - Last activated property cleared
    - Returns to clean home state
 
+### Theme Toggle Flow
+1. User clicks Moon/Sun icon in header
+2. Theme state toggles (light ↔ dark)
+3. New theme saved to localStorage
+4. All components re-render with new theme
+5. CSS classes update throughout app
+6. Theme persists on page refresh/browser restart
+
 ## Technical Implementation Details
+
+### Theme System Implementation
+**State Management:**
+- Theme state managed in App.jsx (`'light'` or `'dark'`)
+- Passed as prop to all components that need theming
+- localStorage used for persistence across sessions
+
+**Styling Approach:**
+- Conditional Tailwind classes based on theme prop
+- Pattern: `className={theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'}`
+- All interactive elements adapt to both themes
+- Maintains WCAG AA contrast standards in both modes
+
+**Color Scheme:**
+- Light mode: White/Gray-50 backgrounds, dark text
+- Dark mode: Gray-900/Gray-800 backgrounds, light text
+- Accent colors (blue, green) remain consistent
+- Borders and dividers adjust for each theme
+
+**Performance:**
+- Single state change updates entire app
+- No full page reload required
+- Efficient re-rendering (only styled components update)
+- localStorage write is synchronous and minimal
+
+### Map Integration Implementation
+**Initialization:**
+- Map component only mounts when property selected
+- Single map instance created on first render
+- Reuses same instance when changing properties
+
+**Updates:**
+- Center and marker update without recreating map
+- Smooth transitions between property locations
+- Cleanup on component unmount prevents memory leaks
+
+**Coordinates:**
+- Uses property's latitude/longitude from database
+- Fallback to DC center (38.905172, -77.0046697) if missing
+- 15x zoom provides street-level detail
+
+**Styling:**
+- 200x200px square (1:1 ratio)
+- Rounded corners match card design
+- Overflow hidden for clean appearance
+- Blue marker (#2563eb) matches UI accent color
 
 ### Large Number Handling
 - Canvas PIDs are very large integers (19 digits)
@@ -671,6 +841,7 @@ docker-compose exec backend npm install <package>
 - Scroll lock when modals open
 - Separate state for each modal type
 - Error states integrated into same modal
+- Theme-aware rendering
 
 ### Usage Tracking Implementation
 - Only 2 event types tracked: 'table_activate' and 'admin_refresh'
@@ -688,11 +859,25 @@ docker-compose exec backend npm install <package>
 3. Add dropdown/input in UI
 4. Update filtering logic in useEffect
 5. Test with various filter combinations
+6. Ensure theme support for new UI elements
 
 ### Changing Countdown Duration
 1. Update `COUNTDOWN_SECONDS` in `backend/.env`
 2. Restart backend: `docker-compose restart backend`
 3. Frontend automatically fetches new value
+
+### Changing Map Style
+1. Edit PropertyMap.jsx
+2. Change `style` parameter to different Mapbox style
+3. Options: streets-v12, satellite-streets-v12, dark-v11, light-v11
+4. Example: `style: 'mapbox://styles/mapbox/dark-v11'`
+
+### Customizing Theme Colors
+1. Edit conditional classes in components
+2. Change Tailwind color values (e.g., gray-800 → gray-900)
+3. Test in both light and dark modes
+4. Verify contrast ratios for accessibility
+5. Update multiple components if changing global scheme
 
 ### Modifying Table Commands
 ⚠️ **CAUTION**: Table activation and flatten commands use very specific API formats
@@ -708,6 +893,14 @@ docker-compose exec backend npm install <package>
 3. Check field name mappings (UPPERCASE → snake_case)
 4. Verify canvas_pid string conversion
 5. Check database constraints and indexes
+
+### Troubleshooting Map Issues
+1. Verify Mapbox token is valid and set
+2. Check browser console for Mapbox errors
+3. Ensure property has valid latitude/longitude
+4. Verify mapbox-gl CSS is imported
+5. Check map container has dimensions (width/height)
+6. Test in different browsers for WebGL support
 
 ### Debugging Remote API Calls
 1. Open browser DevTools Network tab
@@ -731,14 +924,18 @@ docker-compose exec backend npm install <package>
 2. Email reports on weekly/monthly basis
 3. Session management for admin login
 4. Additional usage event types (if needed)
-5. Property detail page
+5. Property detail page with expanded info
+6. System dark mode preference detection
+7. Multiple map style options (satellite, terrain)
 
 ### Medium-term
 1. Property comparison features
 2. User favorites/bookmarks
-3. Advanced geospatial filters
+3. Advanced geospatial filters (radius search)
 4. Real-time analytics updates
 5. Presentation mode
+6. Driving directions to properties
+7. Street view integration
 
 ### Long-term
 1. Multi-location support
@@ -746,6 +943,8 @@ docker-compose exec backend npm install <package>
 3. Integration with CRM systems
 4. Mobile app for table control
 5. Machine learning for property recommendations
+6. Heat maps for property density
+7. Custom map overlays (zones, districts)
 
 ## Notes
 - Database data persists in Docker volume `postgres_data`
@@ -756,11 +955,15 @@ docker-compose exec backend npm install <package>
 - Admin page designed to be extensible for future administrative functions
 - Property data refreshed manually via admin panel
 - Remote API calls require internal network access
-- Countdown timer prevents accidental interruption of table commands
+- Countdown timer prevents overworking the table motors
 - Property selection state managed entirely client-side
 - No user authentication for general use (open access to property picker)
 - Usage tracking is non-intrusive (failures don't break main functionality)
 - Only 2 event types tracked to keep analytics focused and performant
+- **Map requires valid Mapbox access token to function**
+- **Map requires WebGL support in browser (Chrome 56+, Firefox 49+, Safari 10.1+, Edge 79+)**
+- **Theme preference persists across browser sessions via localStorage**
+- **Dark mode meets WCAG AA contrast standards**
 
 ## Critical Code Reference
 **IMPORTANT**: The file `critical_code.md` contains exact API call patterns for:
@@ -777,6 +980,41 @@ These patterns have been tested with actual hardware and external systems. Any d
 
 **Last Updated:** November 10, 2025
 
-**Version:** 2.1.0 (Added usage tracking, updated API documentation, added critical code reference)
+**Version:** 3.0.0 (Added Mapbox map integration, dark mode theme system, updated all components)
+
+**Major Changes in v3.0.0:**
+- Added interactive Mapbox street map to selected property display
+- Implemented dark mode theme with light/dark toggle
+- Added theme persistence via localStorage
+- Updated all components for theme support
+- Added PropertyMap component for map rendering
+- Enhanced PropertyPicker with map visualization
+- Improved UX with visual property location feedback
+
+**Last Updated:** November 11, 2025
+
+**Version:** 3.5.0
+
+**Major Changes in v3.5.0:**
+- Added Mapbox token environment variable (VITE_MAPBOX_TOKEN)
+- Implemented theme-aware map styles (streets-v12 / dark-v11)
+- Added Server Management section to Admin page (4 restart buttons)
+- Renamed Show URL Content to Show Web Content
+- Moved Show Web Content section to full-width, top of home page
+- Moved action buttons into section layouts (centered at bottom)
+- Enhanced configuration management with .env file updates
+- Renamed Configuration section to System Configuration
+- Updated all component descriptions for consistency
+
+**Components Modified:**
+- PropertyMap.jsx - Theme support, environment variable
+- PropertyPicker.jsx - Integrated action buttons
+- HomePage.jsx - Layout changes, button relocations
+- AdminPage.jsx - Server Management, System Configuration updates
+- server.js - Enhanced config endpoint with .env writing
+
+**Documentation Updated:**
+- critical_code.md - Added Show Web Content API call
+- project_context.md - Comprehensive updates throughout
 
 **Use this document to provide context in future conversations about this project.**

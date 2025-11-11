@@ -1,13 +1,12 @@
-version: '3.8'
 
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: myapp-postgres
+    container_name: tableapp-postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: myapp
+      POSTGRES_DB: tableapp
     ports:
       - "5432:5432"
     volumes:
@@ -21,13 +20,13 @@ services:
 
   backend:
     build: ./backend
-    container_name: myapp-backend
+    container_name: tableapp-backend
     ports:
       - "3000:3000"
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_NAME=myapp
+      - DB_NAME=tableapp
       - DB_USER=postgres
       - DB_PASSWORD=postgres
     depends_on:
@@ -41,7 +40,7 @@ services:
     build:
       context: ./frontend
       target: development
-    container_name: myapp-frontend
+    container_name: tableapp-frontend
     ports:
       - "5173:5173"
     volumes:

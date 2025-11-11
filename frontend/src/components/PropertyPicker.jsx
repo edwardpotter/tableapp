@@ -1,9 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, MapPin, Tag, Building, X } from 'lucide-react';
+import { Search, MapPin, Tag, Building, X, Upload, ArrowDownNarrowWide } from 'lucide-react';
 import axios from 'axios';
 import PropertyMap from './PropertyMap';
 
-function PropertyPicker({ selectedProperty, onSelectProperty, theme }) {
+function PropertyPicker({ 
+  selectedProperty, 
+  onSelectProperty, 
+  theme,
+  onActivateTable,
+  onFlattenTable,
+  isActivateDisabled
+}) {
   const [properties, setProperties] = useState([]);
   const [filteredProperties, setFilteredProperties] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -202,7 +209,7 @@ function PropertyPicker({ selectedProperty, onSelectProperty, theme }) {
                     <div className={`text-sm ${
                       theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
                     }`}>
-                      {property.canvas_submarket} • Class {property.property_class}
+                      {property.canvas_submarket} â€¢ Class {property.property_class}
                     </div>
                   </div>
                 ))
@@ -320,6 +327,7 @@ function PropertyPicker({ selectedProperty, onSelectProperty, theme }) {
               <PropertyMap 
                 latitude={parseFloat(selectedProperty.latitude)} 
                 longitude={parseFloat(selectedProperty.longitude)}
+                theme={theme}
               />
             </div>
 
@@ -338,6 +346,30 @@ function PropertyPicker({ selectedProperty, onSelectProperty, theme }) {
           </div>
         </div>
       )}
+
+      {/* Control Buttons */}
+      <div className="flex flex-col sm:flex-row gap-4 justify-center mt-6">
+        <button
+          onClick={onActivateTable}
+          disabled={isActivateDisabled}
+          className={`flex items-center justify-center px-8 py-4 rounded-lg text-white font-semibold text-lg transition-all ${
+            isActivateDisabled
+              ? 'bg-gray-400 cursor-not-allowed'
+              : 'bg-green-600 hover:bg-green-700 hover:shadow-lg'
+          }`}
+        >
+          <Upload className="w-6 h-6 mr-2" />
+          Activate Table
+        </button>
+
+        <button
+          onClick={onFlattenTable}
+          className="flex items-center justify-center px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-lg rounded-lg transition-all hover:shadow-lg"
+        >
+          <ArrowDownNarrowWide className="w-6 h-6 mr-2" />
+          Flatten Table
+        </button>
+      </div>
     </div>
   );
 }

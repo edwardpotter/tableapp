@@ -1,7 +1,15 @@
 vFuture
-admin page section structure for server restarts
 admin function to restart Unreal engine on MS1 or MS2
 admin function to restart MS1 or MS2 servers
+create and run a playback 'script' of selected properties
+
+v0.03
+Moved carto and mapbox api keys to env config
+Included property card map style in light/dark theme adjustment
+Added admin page section structure for server restarts
+Added display web content action button to home screen
+Made display of show web content section configurable in environment variables
+Added management of environment variables to Admin screen
 
 v0.02
 Added usage tracking table for table activations and data refreshes

@@ -1,10 +1,13 @@
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
+const fs = require('fs');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
 const port = process.env.PORT || 3000;
+const carto_token = process.env.CARTO_API_TOKEN;
 
 // Middleware
 app.use(cors());
@@ -27,7 +30,8 @@ app.get('/api/health', (req, res) => {
 // Get configuration values
 app.get('/api/config', (req, res) => {
   res.json({
-    countdownSeconds: parseInt(process.env.COUNTDOWN_SECONDS || '120', 10)
+    countdownSeconds: parseInt(process.env.COUNTDOWN_SECONDS || '120', 10),
+    showHtmlPanel: process.env.SHOW_HTML_PANEL === 'TRUE'
   });
 });
 
@@ -43,6 +47,64 @@ app.post('/api/admin/authenticate', (req, res) => {
   }
 });
 
+// Update configuration endpoint
+app.post('/api/admin/config', (req, res) => {
+  const { showHtmlPanel } = req.body;
+  
+  if (typeof showHtmlPanel !== 'boolean') {
+    return res.status(400).json({ error: 'showHtmlPanel must be a boolean' });
+  }
+  
+  try {
+    // Update environment variable in memory
+    process.env.SHOW_HTML_PANEL = showHtmlPanel ? 'TRUE' : 'FALSE';
+    
+    // Update .env file
+    const envPath = path.join(__dirname, '../.env');
+    let envContent = '';
+    
+    // Read existing .env file if it exists
+    if (fs.existsSync(envPath)) {
+      envContent = fs.readFileSync(envPath, 'utf8');
+    }
+    
+    // Update or add SHOW_HTML_PANEL value
+    const envLines = envContent.split('\n');
+    let found = false;
+    
+    const updatedLines = envLines.map(line => {
+      if (line.startsWith('SHOW_HTML_PANEL=')) {
+        found = true;
+        return `SHOW_HTML_PANEL=${showHtmlPanel ? 'TRUE' : 'FALSE'}`;
+      }
+      return line;
+    });
+    
+    // If SHOW_HTML_PANEL wasn't found, add it
+    if (!found) {
+      updatedLines.push(`SHOW_HTML_PANEL=${showHtmlPanel ? 'TRUE' : 'FALSE'}`);
+    }
+    
+    // Write back to .env file
+    fs.writeFileSync(envPath, updatedLines.join('\n'), 'utf8');
+    
+    console.log(`Configuration updated: SHOW_HTML_PANEL=${showHtmlPanel ? 'TRUE' : 'FALSE'}`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Configuration updated and saved to .env file',
+      showHtmlPanel: showHtmlPanel
+    });
+  } catch (error) {
+    console.error('Error updating config:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to update configuration',
+      error: error.message 
+    });
+  }
+});
+
 // Admin data refresh endpoint
 app.post('/api/admin/refresh', async (req, res) => {
   try {
@@ -54,7 +116,7 @@ app.post('/api/admin/refresh', async (req, res) => {
     const response = await fetch(apiUrl, {
       method: 'GET',
       headers: {
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJhIjoiYWNfeG03N2kwbmoiLCJqdGkiOiJjNWZhNDg5NiJ9.haDyxrwvNByCclGuXe58BAuEF8DDsnHNj-7dNwQG3xI',
+        'Authorization': `Bearer ${carto_token}`,
         'Cache-Control': 'max-age=300'
       }
     });

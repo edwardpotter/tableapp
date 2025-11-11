@@ -173,35 +173,23 @@ const handleFlattenTable = async () => {
 
 ```javascript
 app.post('/api/admin/refresh', async (req, res) => {
-  const client = await pool.connect();
-  
   try {
-    const cartoApiUrl = 'https://gcp-us-east1.api.carto.com/v3/sql/us_svc_canvas_carto/query';
-    const bearerToken = 'eyJhbGciOiJIUzI1NiJ9.eyJhIjoiYWNfN3l5d2Nhd3QiLCJqdGkiOiI5NjdlNjEwYyJ9.O_OXMAlBl9NG3cAqUVt9VXL4rxLXJEiLqc_pX-Joxho';
+    console.log('Starting data refresh...');
     
-    const sqlQuery = `
-      SELECT DISTINCT ON (PRIMARY_ADDRESS)
-        CANVAS_PID,
-        PRIMARY_ADDRESS,
-        CANVAS_SUBMARKET,
-        PROPERTY_CLASS,
-        LATITUDE,
-        LONGITUDE
-      FROM PROD_CANVAS_DB.DATA.CANVAS_PROPERTIES
-      WHERE canvas_region_id = 8491580179800618632
-        AND PROPERTY_TYPE = 'Office'
-        AND PROPERTY_CLASS IS NOT NULL
-      ORDER BY PRIMARY_ADDRESS, CANVAS_PID
-    `;
-
-    const response = await fetch(cartoApiUrl, {
-      method: 'POST',
+    // Fetch data from external API (updated URL with latitude and longitude)
+    const apiUrl = 'https://gcp-us-east1.api.carto.com/v3/sql/us_svc_canvas_carto/query?q=select%0A%20%20%20%20distinct%0A%20%20%20%20%20%20%20%20canvas_pid%2C%0A%20%20%20%20%20%20%20%20primary_address%2C%0A%20%20%20%20%20%20%20%20canvas_submarket%2C%0A%20%20%20%20%20%20%20%20property_class%2C%0A%20%20%20%20%20%20%20%20latitude%2C%0A%20%20%20%20%20%20%20%20longitude%0Afrom%0A%20%20%20%20PROD_CANVAS_DB.DATA.CANVAS_PROPERTIES%0Awhere%0A%20%20%20%20canvas_pid%20in%20(%0A%20%20%20%20%20%20%20%20select%20%0A%20%20%20%20%20%20%20%20%20%20%20%20min(canvas_pid)%0A%20%20%20%20%20%20%20%20from%0A%20%20%20%20%20%20%20%20%20%20%20%20PROD_CANVAS_DB.DATA.CANVAS_PROPERTIES%0A%20%20%20%20%20%20%20%20where%0A%20%20%20%20%20%20%20%20%20%20%20%20canvas_region_id%20%3D%208491580179800618632%0A%20%20%20%20%20%20%20%20%20%20%20%20and%20property_type%20%3D%20%27Office%27%0A%20%20%20%20%20%20%20%20group%20by%20primary_address%0A%20%20%20%20)%0A%20%20%20%20and%20property_class%20is%20not%20null%0Aorder%20by%20primary_address%20asc';
+    
+    const response = await fetch(apiUrl, {
+      method: 'GET',
       headers: {
-        'Authorization': `Bearer ${bearerToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ q: sqlQuery }),
+        'Authorization': `Bearer ${carto_token}`,
+        'Cache-Control': 'max-age=300'
+      }
     });
+
+    if (!response.ok) {
+      throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+    }
 
     const data = await response.json();
     

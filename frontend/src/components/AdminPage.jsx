@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { RefreshCw, TrendingUp, Activity, MapPin, Clock, Calendar } from 'lucide-react';
+import { RefreshCw, TrendingUp, Activity, MapPin, Clock, Calendar, Server, Settings } from 'lucide-react';
 import axios from 'axios';
 import LoadingModal from './LoadingModal';
 
@@ -12,10 +12,28 @@ function AdminPage({ theme }) {
   const [dateRange, setDateRange] = useState('all');
   const [recentLogs, setRecentLogs] = useState([]);
   const [showRecentLogs, setShowRecentLogs] = useState(false);
+  
+  // Server management state
+  const [showServerConfirm, setShowServerConfirm] = useState(false);
+  const [serverAction, setServerAction] = useState(null);
+  
+  // Configuration state
+  const [showHtmlPanel, setShowHtmlPanel] = useState(false);
+  const [configLoading, setConfigLoading] = useState(false);
 
   useEffect(() => {
     fetchAnalytics();
+    fetchConfig();
   }, [dateRange]);
+
+  const fetchConfig = async () => {
+    try {
+      const response = await axios.get('/api/config');
+      setShowHtmlPanel(response.data.showHtmlPanel || false);
+    } catch (error) {
+      console.error('Error fetching config:', error);
+    }
+  };
 
   const fetchAnalytics = async () => {
     setLoadingAnalytics(true);
@@ -116,6 +134,49 @@ function AdminPage({ theme }) {
       .join(' ');
   };
 
+  // Server management handlers
+  const handleServerAction = (action) => {
+    setServerAction(action);
+    setShowServerConfirm(true);
+  };
+
+  const handleConfirmServerAction = () => {
+    // TODO: Implement actual server restart logic
+    console.log(`Server action triggered: ${serverAction}`);
+    setShowServerConfirm(false);
+    setServerAction(null);
+  };
+
+  const handleCancelServerAction = () => {
+    setShowServerConfirm(false);
+    setServerAction(null);
+  };
+
+  const getServerActionTitle = (action) => {
+    const titles = {
+      'restart_ue_table': 'Restart UE on Table',
+      'restart_ue_screen': 'Restart UE on Screen',
+      'restart_table_server': 'Restart Table Server',
+      'restart_screen_server': 'Restart Screen Server'
+    };
+    return titles[action] || action;
+  };
+
+  const handleConfigChange = async (newShowHtmlPanel) => {
+    setConfigLoading(true);
+    try {
+      await axios.post('/api/admin/config', {
+        showHtmlPanel: newShowHtmlPanel
+      });
+      setShowHtmlPanel(newShowHtmlPanel);
+    } catch (error) {
+      console.error('Error updating config:', error);
+      alert('Failed to update configuration');
+    } finally {
+      setConfigLoading(false);
+    }
+  };
+
   return (
     <div className={`min-h-screen p-8 ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <div className="max-w-7xl mx-auto">
@@ -125,6 +186,51 @@ function AdminPage({ theme }) {
         <p className={`mb-8 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
           Manage property data and view usage analytics
         </p>
+
+        {/* Server Management Section */}
+        <div className={`rounded-lg shadow-md p-6 mb-8 ${
+          theme === 'dark' ? 'bg-gray-800' : 'bg-white'
+        }`}>
+          <h2 className={`text-xl font-semibold mb-4 flex items-center ${
+            theme === 'dark' ? 'text-white' : 'text-gray-900'
+          }`}>
+            <Server className="w-5 h-5 mr-2" />
+            Server Management
+          </h2>
+          <p className={`mb-4 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+            Manage and restart remote servers and Unreal Engine instances.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <button
+              onClick={() => handleServerAction('restart_ue_table')}
+              className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center"
+            >
+              <RefreshCw className="w-5 h-5 mr-2" />
+              Restart UE on Table
+            </button>
+            <button
+              onClick={() => handleServerAction('restart_ue_screen')}
+              className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center"
+            >
+              <RefreshCw className="w-5 h-5 mr-2" />
+              Restart UE on Screen
+            </button>
+            <button
+              onClick={() => handleServerAction('restart_table_server')}
+              className="px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center justify-center"
+            >
+              <Server className="w-5 h-5 mr-2" />
+              Restart Table Server
+            </button>
+            <button
+              onClick={() => handleServerAction('restart_screen_server')}
+              className="px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center justify-center"
+            >
+              <Server className="w-5 h-5 mr-2" />
+              Restart Screen Server
+            </button>
+          </div>
+        </div>
 
         {/* Data Management Section */}
         <div className={`rounded-lg shadow-md p-6 mb-8 ${
@@ -405,6 +511,49 @@ function AdminPage({ theme }) {
             </p>
           )}
         </div>
+
+        {/* System Configuration Section */}
+        <div className={`rounded-lg shadow-md p-6 mb-8 ${
+          theme === 'dark' ? 'bg-gray-800' : 'bg-white'
+        }`}>
+          <h2 className={`text-xl font-semibold mb-4 flex items-center ${
+            theme === 'dark' ? 'text-white' : 'text-gray-900'
+          }`}>
+            <Settings className="w-5 h-5 mr-2" />
+            System Configuration
+          </h2>
+          <p className={`mb-4 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+            Manage application settings and features
+          </p>
+          <div className="space-y-4">
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showHtmlPanel}
+                onChange={(e) => handleConfigChange(e.target.checked)}
+                disabled={configLoading}
+                className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 disabled:opacity-50"
+              />
+              <span className={`ml-3 ${
+                theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+              }`}>
+                Show Web Content
+              </span>
+              {configLoading && (
+                <span className={`ml-2 text-sm ${
+                  theme === 'dark' ? 'text-gray-500' : 'text-gray-500'
+                }`}>
+                  (Updating...)
+                </span>
+              )}
+            </label>
+            <p className={`text-sm pl-8 ${
+              theme === 'dark' ? 'text-gray-500' : 'text-gray-500'
+            }`}>
+              When enabled, displays the Web Content section on the home page for loading custom web pages on the table.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Modals - they remain with light backgrounds for clarity */}
@@ -413,7 +562,7 @@ function AdminPage({ theme }) {
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-xl font-semibold text-gray-900 mb-4">Confirm Data Refresh</h3>
             <p className="text-gray-600 mb-6">
-              This will fetch the latest property data from the CARTO API and update the database.
+              This will fetch the latest property data and replace the database.
               This operation may take a few moments.
             </p>
             <div className="flex space-x-3">
@@ -474,7 +623,7 @@ function AdminPage({ theme }) {
                 onClick={() => setShowRecentLogs(false)}
                 className="text-gray-500 hover:text-gray-700"
               >
-                ✕
+                âœ•
               </button>
             </div>
             <div className="overflow-y-auto flex-1">
@@ -514,6 +663,33 @@ function AdminPage({ theme }) {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Server Action Confirmation Modal */}
+      {showServerConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-xl font-semibold text-gray-900 mb-4">Confirm Server Action</h3>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to trigger: <strong>{getServerActionTitle(serverAction)}</strong>?
+              This action will affect the remote server or Unreal Engine instance.
+            </p>
+            <div className="flex space-x-3">
+              <button
+                onClick={handleCancelServerAction}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmServerAction}
+                className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+              >
+                Confirm
+              </button>
             </div>
           </div>
         </div>
