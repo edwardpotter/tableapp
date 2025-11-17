@@ -3,7 +3,7 @@ import { RefreshCw, Database, Power, RotateCcw, DatabaseZap, TrendingUp, Activit
 import axios from 'axios';
 import LoadingModal from './LoadingModal';
 
-function AdminPage({ theme }) {
+function AdminPage({ theme, onConfigChange }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [refreshResult, setRefreshResult] = useState(null);
@@ -180,7 +180,7 @@ function AdminPage({ theme }) {
       }
       
       await axios.post('/api/admin/config', payload);
-      
+
       // Update local state
       if (configKey === 'showHtmlPanel') {
         setShowHtmlPanel(newValue);
@@ -188,6 +188,11 @@ function AdminPage({ theme }) {
         setShowMarketCanvas2(newValue);
       } else if (configKey === 'scriptsEnabled') {
         setScriptsEnabled(newValue);
+      }
+
+      // Notify parent component (App.jsx) of the change
+      if (onConfigChange) {
+        onConfigChange(configKey, newValue);
       }
     } catch (error) {
       console.error('Error updating config:', error);
