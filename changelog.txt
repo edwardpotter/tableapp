@@ -2,8 +2,10 @@ vFuture
 admin function to restart Unreal engine on MS1 or MS2
 admin function to restart MS1 or MS2 servers
 show neighborhood /submarket page on table / flat and from MC2.0 on screen
-make light/dark theme selection to be remembered and inherited
-make scripts enabling/disabling take effect real-time versus having to refresh page
+
+v0.05
+Made light/dark theme selection to be remembered and inherited
+Made scripts enabling/disabling take effect real-time versus having to refresh page
 
 v0.04
 Added option that when going to property on table it also opens the property in MC 2.0 on the screen
