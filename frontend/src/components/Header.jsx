@@ -2,9 +2,9 @@ import { Settings, Moon, Sun } from 'lucide-react';
 
 function Header({ onAdminClick, activeTab, onTabChange, theme, onThemeToggle, scriptsEnabled }) {
   return (
-    <header className={`shadow-sm border-b ${
-      theme === 'dark' 
-        ? 'bg-gray-900 border-gray-700' 
+    <header className={`sticky top-0 z-50 shadow-sm border-b ${
+      theme === 'dark'
+        ? 'bg-gray-900 border-gray-700'
         : 'bg-white border-gray-200'
     }`}>
       <div className="flex items-center justify-between px-6 py-4">
