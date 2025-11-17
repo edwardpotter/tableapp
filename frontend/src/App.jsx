@@ -12,21 +12,31 @@ function App() {
   const [theme, setTheme] = useState('light');
   const [scriptsEnabled, setScriptsEnabled] = useState(false);
 
-  // Load theme preference from localStorage on mount
+  // Load theme and config from backend on mount
   useEffect(() => {
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme) {
-      setTheme(savedTheme);
-    }
-    
-    // Fetch config for scriptsEnabled
     const fetchConfig = async () => {
       try {
         const response = await fetch('/api/config');
         const data = await response.json();
         setScriptsEnabled(data.scriptsEnabled || false);
+        // Load theme from backend .env (takes precedence over localStorage)
+        if (data.theme) {
+          setTheme(data.theme);
+          localStorage.setItem('theme', data.theme);
+        } else {
+          // Fallback to localStorage if backend doesn't have theme
+          const savedTheme = localStorage.getItem('theme');
+          if (savedTheme) {
+            setTheme(savedTheme);
+          }
+        }
       } catch (error) {
         console.error('Error fetching config:', error);
+        // Fallback to localStorage on error
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme) {
+          setTheme(savedTheme);
+        }
       }
     };
     fetchConfig();
@@ -65,8 +75,23 @@ function App() {
     setActiveTab(tab);
   };
 
-  const handleThemeToggle = () => {
-    setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
+  const handleThemeToggle = async () => {
+    const newTheme = theme === 'light' ? 'dark' : 'light';
+    setTheme(newTheme);
+
+    // Persist theme to backend .env file
+    try {
+      await fetch('/api/admin/config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ theme: newTheme }),
+      });
+    } catch (error) {
+      console.error('Error saving theme preference:', error);
+      // Theme will still work locally via localStorage
+    }
   };
 
   const handleConfigChange = (configKey, newValue) => {
