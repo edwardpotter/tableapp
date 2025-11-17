@@ -15,6 +15,7 @@ function HomePage({ theme }) {
   // HTML Content section state
   const [showHtmlPanel, setShowHtmlPanel] = useState(false);
   const [htmlUrl, setHtmlUrl] = useState('https://picsum.photos/1920');
+  const [showMarketCanvas2, setShowMarketCanvas2] = useState(false);
 
   useEffect(() => {
     // Fetch countdown configuration and HTML panel setting
@@ -23,6 +24,7 @@ function HomePage({ theme }) {
         const response = await axios.get('/api/config');
         setCountdownConfig({ seconds: response.data.countdownSeconds });
         setShowHtmlPanel(response.data.showHtmlPanel || false);
+        setShowMarketCanvas2(response.data.showMarketCanvas2 || false);
       } catch (error) {
         console.error('Error fetching config:', error);
       }
@@ -108,7 +110,7 @@ function HomePage({ theme }) {
 
       console.log('Sending activation request for property:', canvasPid, 'at location:', latitude, longitude);
       
-      // Make the PUT request
+      // Make the PUT request to Unreal Engine
       const response = await axios.put(
         'https://experience-center-room-dc-srv1.cbre.com/remote/object/call',
         requestBody,
@@ -121,9 +123,24 @@ function HomePage({ theme }) {
 
       console.log('Activation response:', response.data);
 
+      // If Market Canvas 2.0 is enabled, trigger the presentation
+      if (showMarketCanvas2) {
+        console.log('Market Canvas 2.0 is enabled, triggering presentation...');
+        try {
+          const mc2Response = await axios.post('/api/marketcanvas2/present', {
+            propertyId: canvasPid
+          });
+          console.log('Market Canvas 2.0 presentation response:', mc2Response.data);
+        } catch (mc2Error) {
+          console.error('Error triggering Market Canvas 2.0 presentation:', mc2Error);
+          // Don't fail the main activation if MC2 fails
+        }
+      }
+
       // Log successful activation
       await logUsage('table_activate', selectedProperty, {
-        preset: 'properties_overview_map'
+        preset: 'properties_overview_map',
+        marketCanvas2Enabled: showMarketCanvas2
       });
 
       // Mark as last activated property
@@ -284,7 +301,7 @@ function HomePage({ theme }) {
           <p className={`text-lg ${
             theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
           }`}>
-            Select a property to display on the interactive table
+            Select content to display on the kinetic table
           </p>
         </div>
 
@@ -308,13 +325,12 @@ function HomePage({ theme }) {
             <h2 className={`text-2xl font-semibold mb-3 flex items-center ${
               theme === 'dark' ? 'text-white' : 'text-gray-900'
             }`}>
-              <Globe className="w-5 h-5 mr-2" />
               Show Web Content
             </h2>
             <p className={`mb-4 text-sm ${
               theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
             }`}>
-              Display a webpage or image on the table
+              Display web-based content flat on table
             </p>
             <div>
               <label
@@ -323,7 +339,7 @@ function HomePage({ theme }) {
                   theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
                 }`}
               >
-                URL
+                Web Address
               </label>
               <input
                 id="url-input"

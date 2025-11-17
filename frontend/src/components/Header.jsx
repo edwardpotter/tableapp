@@ -1,6 +1,6 @@
 import { Settings, Moon, Sun } from 'lucide-react';
 
-function Header({ onAdminClick, activeTab, onTabChange, theme, onThemeToggle }) {
+function Header({ onAdminClick, activeTab, onTabChange, theme, onThemeToggle, scriptsEnabled }) {
   return (
     <header className={`shadow-sm border-b ${
       theme === 'dark' 
@@ -21,6 +21,20 @@ function Header({ onAdminClick, activeTab, onTabChange, theme, onThemeToggle }) 
           >
             Home
           </button>
+          {scriptsEnabled && (
+            <button
+              onClick={() => onTabChange('scripts')}
+              className={`px-4 py-2 text-sm font-medium transition-colors ${
+                activeTab === 'scripts'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : theme === 'dark'
+                  ? 'text-gray-300 hover:text-white'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Scripts
+            </button>
+          )}
           {activeTab === 'admin' && (
             <button
               onClick={() => onTabChange('admin')}

@@ -1,7 +1,18 @@
 vFuture
 admin function to restart Unreal engine on MS1 or MS2
 admin function to restart MS1 or MS2 servers
-create and run a playback 'script' of selected properties
+show neighborhood /submarket page on table / flat and from MC2.0 on screen
+make light/dark theme selection to be remembered and inherited
+make scripts enabling/disabling take effect real-time versus having to refresh page
+
+v0.04
+Added option that when going to property on table it also opens the property in MC 2.0 on the screen
+Added fuse.js for fuzzy logic on property address search
+Fixed canvas_pid not coming over correctly from carto (cast pid as varchar in the query)
+Added Scripts page and underlying data tables for housing scriped property / web content URL playlists
+Added feature toggle to Admin page for enabling / disabling Scripts functionality
+Added ability to create, edit and delete scripted playlists
+Changed Admin code entry to keypad-style screen
 
 v0.03
 Moved carto and mapbox api keys to env config

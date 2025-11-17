@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Search, MapPin, Tag, Building, X, Upload, ArrowDownNarrowWide } from 'lucide-react';
 import axios from 'axios';
+import Fuse from 'fuse.js';
 import PropertyMap from './PropertyMap';
 
 function PropertyPicker({ 
@@ -9,7 +10,8 @@ function PropertyPicker({
   theme,
   onActivateTable,
   onFlattenTable,
-  isActivateDisabled
+  isActivateDisabled,
+  hideButtons = false
 }) {
   const [properties, setProperties] = useState([]);
   const [filteredProperties, setFilteredProperties] = useState([]);
@@ -77,18 +79,28 @@ function PropertyPicker({
   const filterProperties = () => {
     let filtered = [...properties];
 
-    if (searchTerm) {
-      filtered = filtered.filter((property) =>
-        property.primary_address.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
+    // Apply submarket filter first
     if (selectedSubmarket) {
       filtered = filtered.filter((property) => property.canvas_submarket === selectedSubmarket);
     }
 
+    // Apply property class filter
     if (selectedClass) {
       filtered = filtered.filter((property) => property.property_class === selectedClass);
+    }
+
+    // Apply fuzzy search for address if search term exists
+    if (searchTerm) {
+      // Configure Fuse.js for fuzzy searching
+      const fuse = new Fuse(filtered, {
+        keys: ['primary_address'],
+        threshold: 0.4, // 0.0 = exact match, 1.0 = match anything
+        ignoreLocation: true, // Don't consider location of match
+        minMatchCharLength: 2, // Minimum characters before searching
+      });
+
+      const results = fuse.search(searchTerm);
+      filtered = results.map(result => result.item);
     }
 
     setFilteredProperties(filtered);
@@ -209,7 +221,7 @@ function PropertyPicker({
                     <div className={`text-sm ${
                       theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
                     }`}>
-                      {property.canvas_submarket} â€¢ Class {property.property_class}
+                      {property.canvas_submarket} - Class {property.property_class}
                     </div>
                   </div>
                 ))
@@ -348,28 +360,30 @@ function PropertyPicker({
       )}
 
       {/* Control Buttons */}
-      <div className="flex flex-col sm:flex-row gap-4 justify-center mt-6">
-        <button
-          onClick={onActivateTable}
-          disabled={isActivateDisabled}
-          className={`flex items-center justify-center px-8 py-4 rounded-lg text-white font-semibold text-lg transition-all ${
-            isActivateDisabled
-              ? 'bg-gray-400 cursor-not-allowed'
-              : 'bg-green-600 hover:bg-green-700 hover:shadow-lg'
-          }`}
-        >
-          <Upload className="w-6 h-6 mr-2" />
-          Activate Table
-        </button>
+      {!hideButtons && (
+        <div className="flex flex-col sm:flex-row gap-4 justify-center mt-6">
+          <button
+            onClick={onActivateTable}
+            disabled={isActivateDisabled}
+            className={`flex items-center justify-center px-8 py-4 rounded-lg text-white font-semibold text-lg transition-all ${
+              isActivateDisabled
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-green-600 hover:bg-green-700 hover:shadow-lg'
+            }`}
+          >
+            <Upload className="w-6 h-6 mr-2" />
+            Activate Table
+          </button>
 
-        <button
-          onClick={onFlattenTable}
-          className="flex items-center justify-center px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-lg rounded-lg transition-all hover:shadow-lg"
-        >
-          <ArrowDownNarrowWide className="w-6 h-6 mr-2" />
-          Flatten Table
-        </button>
-      </div>
+          <button
+            onClick={onFlattenTable}
+            className="flex items-center justify-center px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-lg rounded-lg transition-all hover:shadow-lg"
+          >
+            <ArrowDownNarrowWide className="w-6 h-6 mr-2" />
+            Flatten Table
+          </button>
+        </div>
+      )}
     </div>
   );
 }

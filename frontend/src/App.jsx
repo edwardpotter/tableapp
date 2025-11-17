@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import Header from './components/Header';
 import HomePage from './components/HomePage';
+import ScriptsPage from './components/ScriptsPage';
 import AdminPage from './components/AdminPage';
 import AdminModal from './components/AdminModal';
 import './App.css';
@@ -9,6 +10,7 @@ function App() {
   const [activeTab, setActiveTab] = useState('home');
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [theme, setTheme] = useState('light');
+  const [scriptsEnabled, setScriptsEnabled] = useState(false);
 
   // Load theme preference from localStorage on mount
   useEffect(() => {
@@ -16,6 +18,18 @@ function App() {
     if (savedTheme) {
       setTheme(savedTheme);
     }
+    
+    // Fetch config for scriptsEnabled
+    const fetchConfig = async () => {
+      try {
+        const response = await fetch('/api/config');
+        const data = await response.json();
+        setScriptsEnabled(data.scriptsEnabled || false);
+      } catch (error) {
+        console.error('Error fetching config:', error);
+      }
+    };
+    fetchConfig();
   }, []);
 
   // Save theme preference to localStorage when it changes
@@ -43,11 +57,26 @@ function App() {
   };
 
   const handleTabChange = (tab) => {
+    // If scripts tab is disabled and user tries to access it, go home
+    if (tab === 'scripts' && !scriptsEnabled) {
+      setActiveTab('home');
+      return;
+    }
     setActiveTab(tab);
   };
 
   const handleThemeToggle = () => {
     setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
+  };
+
+  const handleConfigChange = (configKey, newValue) => {
+    if (configKey === 'scriptsEnabled') {
+      setScriptsEnabled(newValue);
+      // If scripts are disabled and user is on scripts tab, go to home
+      if (!newValue && activeTab === 'scripts') {
+        setActiveTab('home');
+      }
+    }
   };
 
   return (
@@ -58,12 +87,17 @@ function App() {
         onTabChange={handleTabChange}
         theme={theme}
         onThemeToggle={handleThemeToggle}
+        scriptsEnabled={scriptsEnabled}
       />
       
       {activeTab === 'home' ? (
         <HomePage theme={theme} />
+      ) : activeTab === 'scripts' && scriptsEnabled ? (
+        <ScriptsPage theme={theme} />
+      ) : activeTab === 'admin' ? (
+        <AdminPage theme={theme} onConfigChange={handleConfigChange} />
       ) : (
-        <AdminPage theme={theme} />
+        <HomePage theme={theme} />
       )}
 
       <AdminModal

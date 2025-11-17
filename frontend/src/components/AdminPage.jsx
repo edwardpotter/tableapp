@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { RefreshCw, TrendingUp, Activity, MapPin, Clock, Calendar, Server, Settings } from 'lucide-react';
+import { RefreshCw, Database, Power, RotateCcw, DatabaseZap, TrendingUp, Activity, MapPin, Clock, Calendar, Server, Settings } from 'lucide-react';
 import axios from 'axios';
 import LoadingModal from './LoadingModal';
 
@@ -19,6 +19,8 @@ function AdminPage({ theme }) {
   
   // Configuration state
   const [showHtmlPanel, setShowHtmlPanel] = useState(false);
+  const [showMarketCanvas2, setShowMarketCanvas2] = useState(false);
+  const [scriptsEnabled, setScriptsEnabled] = useState(false);
   const [configLoading, setConfigLoading] = useState(false);
 
   useEffect(() => {
@@ -30,6 +32,8 @@ function AdminPage({ theme }) {
     try {
       const response = await axios.get('/api/config');
       setShowHtmlPanel(response.data.showHtmlPanel || false);
+      setShowMarketCanvas2(response.data.showMarketCanvas2 || false);
+      setScriptsEnabled(response.data.scriptsEnabled || false);
     } catch (error) {
       console.error('Error fetching config:', error);
     }
@@ -162,13 +166,29 @@ function AdminPage({ theme }) {
     return titles[action] || action;
   };
 
-  const handleConfigChange = async (newShowHtmlPanel) => {
+  const handleConfigChange = async (configKey, newValue) => {
     setConfigLoading(true);
     try {
-      await axios.post('/api/admin/config', {
-        showHtmlPanel: newShowHtmlPanel
-      });
-      setShowHtmlPanel(newShowHtmlPanel);
+      const payload = {};
+      
+      if (configKey === 'showHtmlPanel') {
+        payload.showHtmlPanel = newValue;
+      } else if (configKey === 'showMarketCanvas2') {
+        payload.showMarketCanvas2 = newValue;
+      } else if (configKey === 'scriptsEnabled') {
+        payload.scriptsEnabled = newValue;
+      }
+      
+      await axios.post('/api/admin/config', payload);
+      
+      // Update local state
+      if (configKey === 'showHtmlPanel') {
+        setShowHtmlPanel(newValue);
+      } else if (configKey === 'showMarketCanvas2') {
+        setShowMarketCanvas2(newValue);
+      } else if (configKey === 'scriptsEnabled') {
+        setScriptsEnabled(newValue);
+      }
     } catch (error) {
       console.error('Error updating config:', error);
       alert('Failed to update configuration');
@@ -184,7 +204,7 @@ function AdminPage({ theme }) {
           Administration
         </h1>
         <p className={`mb-8 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-          Manage property data and view usage analytics
+          Manage servers, refresh property data, view usage and configure options
         </p>
 
         {/* Server Management Section */}
@@ -205,29 +225,29 @@ function AdminPage({ theme }) {
               onClick={() => handleServerAction('restart_ue_table')}
               className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center"
             >
-              <RefreshCw className="w-5 h-5 mr-2" />
+              <RotateCcw className="w-5 h-5 mr-2" />
               Restart UE on Table
             </button>
             <button
               onClick={() => handleServerAction('restart_ue_screen')}
               className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center"
             >
-              <RefreshCw className="w-5 h-5 mr-2" />
+              <RotateCcw className="w-5 h-5 mr-2" />
               Restart UE on Screen
             </button>
             <button
               onClick={() => handleServerAction('restart_table_server')}
               className="px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center justify-center"
             >
-              <Server className="w-5 h-5 mr-2" />
-              Restart Table Server
+              <Power className="w-5 h-5 mr-2" />
+              Restart Table Server (MS1)
             </button>
             <button
               onClick={() => handleServerAction('restart_screen_server')}
               className="px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center justify-center"
             >
-              <Server className="w-5 h-5 mr-2" />
-              Restart Screen Server
+              <Power className="w-5 h-5 mr-2" />
+              Restart Screen Server (MS2)
             </button>
           </div>
         </div>
@@ -239,18 +259,18 @@ function AdminPage({ theme }) {
           <h2 className={`text-xl font-semibold mb-4 flex items-center ${
             theme === 'dark' ? 'text-white' : 'text-gray-900'
           }`}>
-            <RefreshCw className="w-5 h-5 mr-2" />
+            <Database className="w-5 h-5 mr-2" />
             Data Management
           </h2>
           <p className={`mb-4 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-            Refresh property data from the CARTO API to ensure the latest information is available.
+            Purge all local property data and refresh from Snowflake to ensure the latest information is available.
           </p>
           <button
             onClick={handleRefreshClick}
             disabled={isRefreshing}
             className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center"
           >
-            <RefreshCw className={`w-5 h-5 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <DatabaseZap className={`w-5 h-5 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
             {isRefreshing ? 'Refreshing...' : 'Refresh Data'}
           </button>
         </div>
@@ -530,7 +550,7 @@ function AdminPage({ theme }) {
               <input
                 type="checkbox"
                 checked={showHtmlPanel}
-                onChange={(e) => handleConfigChange(e.target.checked)}
+                onChange={(e) => handleConfigChange('showHtmlPanel', e.target.checked)}
                 disabled={configLoading}
                 className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 disabled:opacity-50"
               />
@@ -551,6 +571,60 @@ function AdminPage({ theme }) {
               theme === 'dark' ? 'text-gray-500' : 'text-gray-500'
             }`}>
               When enabled, displays the Web Content section on the home page for loading custom web pages on the table.
+            </p>
+            
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showMarketCanvas2}
+                onChange={(e) => handleConfigChange('showMarketCanvas2', e.target.checked)}
+                disabled={configLoading}
+                className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 disabled:opacity-50"
+              />
+              <span className={`ml-3 ${
+                theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+              }`}>
+                Show Market Canvas 2.0 Web
+              </span>
+              {configLoading && (
+                <span className={`ml-2 text-sm ${
+                  theme === 'dark' ? 'text-gray-500' : 'text-gray-500'
+                }`}>
+                  (Updating...)
+                </span>
+              )}
+            </label>
+            <p className={`text-sm pl-8 ${
+              theme === 'dark' ? 'text-gray-500' : 'text-gray-500'
+            }`}>
+              When enabled, activating a property on the table will also trigger the Market Canvas 2.0 web presentation.
+            </p>
+            
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={scriptsEnabled}
+                onChange={(e) => handleConfigChange('scriptsEnabled', e.target.checked)}
+                disabled={configLoading}
+                className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 disabled:opacity-50"
+              />
+              <span className={`ml-3 ${
+                theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+              }`}>
+                Enable Scripts
+              </span>
+              {configLoading && (
+                <span className={`ml-2 text-sm ${
+                  theme === 'dark' ? 'text-gray-500' : 'text-gray-500'
+                }`}>
+                  (Updating...)
+                </span>
+              )}
+            </label>
+            <p className={`text-sm pl-8 ${
+              theme === 'dark' ? 'text-gray-500' : 'text-gray-500'
+            }`}>
+              When enabled, displays the Scripts tab for creating and playing automated presentation sequences.
             </p>
           </div>
         </div>
@@ -623,7 +697,7 @@ function AdminPage({ theme }) {
                 onClick={() => setShowRecentLogs(false)}
                 className="text-gray-500 hover:text-gray-700"
               >
-                âœ•
+                Ã¢Å“â€¢
               </button>
             </div>
             <div className="overflow-y-auto flex-1">
