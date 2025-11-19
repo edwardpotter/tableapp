@@ -2,10 +2,20 @@ vFuture
 admin function to restart Unreal engine on MS1 or MS2
 admin function to restart MS1 or MS2 servers
 show neighborhood /submarket page on table / flat and from MC2.0 on screen
+change activity by hour of day to be a sparkline of usage by day
+
+Need to add a 'close browser' button that will send close browser and start videos
+
+v0.06
+Enabled property list to show once search by address box is active, not just when a character has been typed
+Added controlvideo api
+Adjusted present 2.0 on screen to close video function before starting browser
+Added closebrowser api
 
 v0.05
 Made light/dark theme selection to be remembered and inherited
 Made scripts enabling/disabling take effect real-time versus having to refresh page
+Made header navigation stick to top of page
 
 v0.04
 Added option that when going to property on table it also opens the property in MC 2.0 on the screen

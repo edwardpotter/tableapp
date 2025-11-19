@@ -125,6 +125,17 @@ function HomePage({ theme }) {
 
       // If Market Canvas 2.0 is enabled, trigger the presentation
       if (showMarketCanvas2) {
+        console.log('Market Canvas 2.0 is enabled, stopping videos...');
+        try {
+          const mcVideoResponse = await axios.post('/api/marketcanvas2/controlvideo', {
+            commandName: "close"
+          });
+          console.log('Market Canvas 2.0 controlvideo response:', mcVideoResponse.data);
+        } catch (mcVideoError) {
+          console.error('Error triggering Market Canvas 2.0 controlvideo:', mcVideoError);
+          // Don't fail the main activation if MC2 fails
+        }
+
         console.log('Market Canvas 2.0 is enabled, triggering presentation...');
         try {
           const mc2Response = await axios.post('/api/marketcanvas2/present', {
