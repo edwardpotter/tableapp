@@ -196,7 +196,7 @@ function PropertyPicker({
           </div>
 
           {/* Search Dropdown */}
-          {showDropdown && searchTerm && (
+          {showDropdown && (
             <div className={`absolute z-10 w-full mt-1 border rounded-lg shadow-lg max-h-60 overflow-y-auto ${
               theme === 'dark'
                 ? 'bg-gray-700 border-gray-600'
