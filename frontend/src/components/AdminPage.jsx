@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { RefreshCw, Database, Power, RotateCcw, DatabaseZap, TrendingUp, Activity, MapPin, Clock, Calendar, Server, Settings } from 'lucide-react';
+import { RefreshCw, Database, Power, RotateCcw, DatabaseZap, TrendingUp, Activity, MapPin, Clock, Calendar, Server, Settings, MonitorX } from 'lucide-react';
 import axios from 'axios';
 import LoadingModal from './LoadingModal';
 
@@ -16,7 +16,11 @@ function AdminPage({ theme, onConfigChange }) {
   // Server management state
   const [showServerConfirm, setShowServerConfirm] = useState(false);
   const [serverAction, setServerAction] = useState(null);
-  
+
+  // Room management state
+  const [roomActionLoading, setRoomActionLoading] = useState(false);
+  const [roomActionResult, setRoomActionResult] = useState(null);
+
   // Configuration state
   const [showHtmlPanel, setShowHtmlPanel] = useState(false);
   const [showMarketCanvas2, setShowMarketCanvas2] = useState(false);
@@ -170,7 +174,7 @@ function AdminPage({ theme, onConfigChange }) {
     setConfigLoading(true);
     try {
       const payload = {};
-      
+
       if (configKey === 'showHtmlPanel') {
         payload.showHtmlPanel = newValue;
       } else if (configKey === 'showMarketCanvas2') {
@@ -178,7 +182,7 @@ function AdminPage({ theme, onConfigChange }) {
       } else if (configKey === 'scriptsEnabled') {
         payload.scriptsEnabled = newValue;
       }
-      
+
       await axios.post('/api/admin/config', payload);
 
       // Update local state
@@ -202,6 +206,42 @@ function AdminPage({ theme, onConfigChange }) {
     }
   };
 
+  // Room management - Close Browser handler
+  const handleCloseBrowser = async () => {
+    setRoomActionLoading(true);
+    setRoomActionResult(null);
+
+    try {
+      // First, call the closebrowser API
+      const closeBrowserResponse = await axios.post('/api/marketcanvas2/closebrowser');
+      console.log('Close browser response:', closeBrowserResponse.data);
+
+      // Then, call the controlvideo API with commandName "start"
+      const controlVideoResponse = await axios.post('/api/marketcanvas2/controlvideo', {
+        commandName: 'start'
+      });
+      console.log('Control video response:', controlVideoResponse.data);
+
+      setRoomActionResult({
+        success: true,
+        message: 'Browser closed and video started successfully'
+      });
+    } catch (error) {
+      console.error('Error in room management action:', error);
+      setRoomActionResult({
+        success: false,
+        message: error.response?.data?.message || 'Failed to execute room management action',
+        error: error.response?.data?.error || error.message
+      });
+    } finally {
+      setRoomActionLoading(false);
+    }
+  };
+
+  const handleCloseRoomResult = () => {
+    setRoomActionResult(null);
+  };
+
   return (
     <div className={`min-h-screen p-8 ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <div className="max-w-7xl mx-auto">
@@ -211,6 +251,31 @@ function AdminPage({ theme, onConfigChange }) {
         <p className={`mb-8 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
           Manage servers, refresh property data, view usage and configure options
         </p>
+
+        {/* Room Management Section */}
+        <div className={`rounded-lg shadow-md p-6 mb-8 ${
+          theme === 'dark' ? 'bg-gray-800' : 'bg-white'
+        }`}>
+          <h2 className={`text-xl font-semibold mb-4 flex items-center ${
+            theme === 'dark' ? 'text-white' : 'text-gray-900'
+          }`}>
+            <MonitorX className="w-5 h-5 mr-2" />
+            Room Management
+          </h2>
+          <p className={`mb-4 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+            Control room display and video playback.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <button
+              onClick={handleCloseBrowser}
+              disabled={roomActionLoading}
+              className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center"
+            >
+              <MonitorX className={`w-5 h-5 mr-2 ${roomActionLoading ? 'animate-spin' : ''}`} />
+              {roomActionLoading ? 'Processing...' : 'Close Browser'}
+            </button>
+          </div>
+        </div>
 
         {/* Server Management Section */}
         <div className={`rounded-lg shadow-md p-6 mb-8 ${
@@ -685,6 +750,32 @@ function AdminPage({ theme, onConfigChange }) {
             )}
             <button
               onClick={handleCloseResult}
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {roomActionResult && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3
+              className={`text-xl font-semibold mb-4 ${
+                roomActionResult.success ? 'text-green-600' : 'text-red-600'
+              }`}
+            >
+              {roomActionResult.success ? 'Success!' : 'Error'}
+            </h3>
+            <p className="text-gray-700 mb-2">{roomActionResult.message}</p>
+            {!roomActionResult.success && roomActionResult.error && (
+              <p className="text-sm text-red-600 mb-4 bg-red-50 p-3 rounded">
+                {roomActionResult.error}
+              </p>
+            )}
+            <button
+              onClick={handleCloseRoomResult}
               className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               Close
