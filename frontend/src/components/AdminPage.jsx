@@ -263,7 +263,7 @@ function AdminPage({ theme, onConfigChange }) {
             Room Management
           </h2>
           <p className={`mb-4 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-            Control room display and video playback.
+            Control room display and screensaver mode.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <button
@@ -613,7 +613,7 @@ function AdminPage({ theme, onConfigChange }) {
             System Configuration
           </h2>
           <p className={`mb-4 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-            Manage application settings and features
+            Manage table control application settings and features
           </p>
           <div className="space-y-4">
             <label className="flex items-center cursor-pointer">
@@ -667,7 +667,7 @@ function AdminPage({ theme, onConfigChange }) {
             <p className={`text-sm pl-8 ${
               theme === 'dark' ? 'text-gray-500' : 'text-gray-500'
             }`}>
-              When enabled, activating a property on the table will also trigger the Market Canvas 2.0 web presentation.
+              When enabled, activating a property on the table will also activate the Market Canvas 2.0 web application on the screen.
             </p>
             
             <label className="flex items-center cursor-pointer">
@@ -694,7 +694,7 @@ function AdminPage({ theme, onConfigChange }) {
             <p className={`text-sm pl-8 ${
               theme === 'dark' ? 'text-gray-500' : 'text-gray-500'
             }`}>
-              When enabled, displays the Scripts tab for creating and playing automated presentation sequences.
+              When enabled, displays the Scripts tab for creating and playing scripted presentation sequences.
             </p>
           </div>
         </div>
@@ -706,8 +706,8 @@ function AdminPage({ theme, onConfigChange }) {
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-xl font-semibold text-gray-900 mb-4">Confirm Data Refresh</h3>
             <p className="text-gray-600 mb-6">
-              This will fetch the latest property data and replace the database.
-              This operation may take a few moments.
+              This will fetch the latest property data and replace the database.  This actin can not be undone.
+              This operation may take a few minutes.
             </p>
             <div className="flex space-x-3">
               <button
@@ -844,8 +844,8 @@ function AdminPage({ theme, onConfigChange }) {
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-xl font-semibold text-gray-900 mb-4">Confirm Server Action</h3>
             <p className="text-gray-600 mb-6">
-              Are you sure you want to trigger: <strong>{getServerActionTitle(serverAction)}</strong>?
-              This action will affect the remote server or Unreal Engine instance.
+              Are you sure you want to <strong>{getServerActionTitle(serverAction)}</strong>?
+              This may take a few minutes to complete.
             </p>
             <div className="flex space-x-3">
               <button
@@ -865,7 +865,7 @@ function AdminPage({ theme, onConfigChange }) {
         </div>
       )}
 
-      {isRefreshing && <LoadingModal message="Refreshing data from CARTO API..." theme={theme} />}
+      {isRefreshing && <LoadingModal message="Refreshing data from Snowflake..." theme={theme} />}
     </div>
   );
 }
